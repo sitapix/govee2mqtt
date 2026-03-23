@@ -1,7 +1,7 @@
 name: Govee to MQTT Bridge
 image: ghcr.io/sitapix/govee2mqtt-{arch}
 version: "2025.11.25-60a39bcc"
-slug: govee2mqtt
+slug: govee2mqtt-lite
 description: Control Govee Devices
 url: https://github.com/sitapix/govee2mqtt
 breaking_versions:
