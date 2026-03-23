@@ -17,8 +17,7 @@ services:
 
 apparmor: true
 
-ingress: true
-ingress_port: 8056
+webui: http://[HOST]:[PORT:8056]/assets/index.html
 
 # Host network access is required for LAN discovery
 host_network: true

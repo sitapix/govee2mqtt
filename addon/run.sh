@@ -3,7 +3,7 @@
 export RUST_BACKTRACE=full
 export RUST_LOG_STYLE=always
 export XDG_CACHE_HOME=/data
-export GOVEE_HTTP_INGRESS_ONLY=1
+# export GOVEE_HTTP_INGRESS_ONLY=1
 
 # Propagate timezone from Home Assistant
 export TZ="$(bashio::supervisor.timezone)"
