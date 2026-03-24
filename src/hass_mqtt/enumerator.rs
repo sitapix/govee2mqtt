@@ -345,7 +345,7 @@ mod tests {
             .set_hass_disco_prefix("homeassistant".to_string())
             .await;
         state
-            .set_platform_client(GoveeApiClient::new("dummy"))
+            .set_platform_client(GoveeApiClient::new("dummy").unwrap())
             .await;
 
         {

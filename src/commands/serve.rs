@@ -20,11 +20,25 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
-/// Default poll interval. 120s balances freshness vs rate limit budget.
-/// With the Govee push MQTT client, polling is mostly a fallback.
-/// At 120s with 20 devices: ~14,400 req/day (under the 10,000 limit
-/// if push handles most updates).
-pub const POLL_INTERVAL: Lazy<chrono::Duration> = Lazy::new(|| chrono::Duration::seconds(120));
+/// Default poll interval in seconds. Override with GOVEE_POLL_INTERVAL env var.
+/// Per-device rate at 120s: 720 req/day. With many devices that can exceed
+/// the 10,000/day Platform API limit — but IoT/Push/LAN state updates skip
+/// the Platform API poll, so only devices without those channels consume quota.
+/// Users with 14+ non-IoT/LAN devices should increase this (e.g. 900).
+pub static POLL_INTERVAL: Lazy<chrono::Duration> = Lazy::new(|| {
+    parse_poll_interval(std::env::var("GOVEE_POLL_INTERVAL").ok().as_deref())
+});
+
+/// Parse poll interval from an optional string value, falling back to 120s.
+/// Clamps to a minimum of 30s to prevent API abuse and broken online detection.
+fn parse_poll_interval(env_val: Option<&str>) -> chrono::Duration {
+    let secs = env_val
+        .and_then(|v| v.parse::<i64>().ok())
+        .filter(|&s| s >= 30)
+        .unwrap_or(120);
+    log::info!("Poll interval: {secs}s");
+    chrono::Duration::seconds(secs)
+}
 
 #[derive(clap::Parser, Debug)]
 pub struct ServeCommand {
@@ -96,13 +110,11 @@ async fn poll_single_device(state: &StateHandle, device: &Device) -> anyhow::Res
         return Ok(());
     }
 
-    if !needs_platform {
-        if state.poll_iot_api(&device).await? {
-            return Ok(());
-        }
+    if !needs_platform && state.poll_iot_api(device).await? {
+        return Ok(());
     }
 
-    state.poll_platform_api(&device).await?;
+    state.poll_platform_api(device).await?;
 
     Ok(())
 }
@@ -112,10 +124,23 @@ async fn periodic_state_poll(
     extensions: Arc<ExtensionManager>,
 ) -> anyhow::Result<()> {
     sleep(Duration::from_secs(20)).await;
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(4));
     loop {
-        for d in state.devices().await {
-            if let Err(err) = poll_single_device(&state, &d).await {
-                log::error!("while polling {d}: {err:#}");
+        let devices = state.devices().await;
+        let mut set = tokio::task::JoinSet::new();
+        for d in devices {
+            let state = state.clone();
+            let sem = semaphore.clone();
+            set.spawn(async move {
+                let _permit = sem.acquire().await.expect("semaphore closed");
+                if let Err(err) = poll_single_device(&state, &d).await {
+                    log::error!("while polling {d}: {err:#}");
+                }
+            });
+        }
+        while let Some(result) = set.join_next().await {
+            if let Err(e) = result {
+                log::error!("polling task panicked: {e}");
             }
         }
 
@@ -137,8 +162,10 @@ async fn enumerate_devices_via_platform_api(
         },
     };
 
-    log::info!("Querying platform API for device list");
-    for info in client.get_devices().await? {
+    log::info!("Querying Platform API for device list...");
+    let devices = client.get_devices().await?;
+    log::info!("Platform API returned {} devices", devices.len());
+    for info in devices {
         let mut device = state.device_mut(&info.sku, &info.device).await;
         device.set_http_device_info(info);
     }
@@ -158,7 +185,7 @@ async fn enumerate_devices_via_undo_api(
         },
     };
 
-    log::info!("Querying undocumented API for device + room list");
+    log::info!("Querying undocumented API for device + room list...");
     let acct = client.login_account_cached().await?;
     let info = client.get_device_list(&acct.token).await?;
     let mut group_by_id = HashMap::new();
@@ -193,13 +220,20 @@ impl ServeCommand {
         log::info!("Starting service. version {}", govee_version());
         crate::service::device_config::load_device_config();
         crate::service::scene_database::load_scene_databases();
-        let mut device_db =
-            crate::service::device_database::load_device_database();
         let state = Arc::new(crate::service::state::State::new());
 
-        // First, use the HTTP APIs to determine the list of devices and
-        // their names. On failure, fall back to the persisted device database.
+        Self::discover_devices(&state, args).await?;
+        Self::start_lan_discovery(&state, args).await?;
+        Self::log_discovered_devices(&state).await;
+        Self::start_services(self.http_port, &state, args).await
+    }
 
+    /// Run API discovery, falling back to cached device database on failure.
+    async fn discover_devices(
+        state: &StateHandle,
+        args: &crate::Args,
+    ) -> anyhow::Result<()> {
+        let mut device_db = crate::service::device_database::load_device_database();
         let mut api_discovery_failed = false;
 
         if let Ok(client) = args.api_args.api_client() {
@@ -223,11 +257,8 @@ impl ServeCommand {
                 }
                 api_discovery_failed = true;
             } else {
-                // only record the client after we've completed the
-                // initial platform disco attempt
                 state.set_platform_client(client).await;
 
-                // spawn periodic discovery task
                 let state = state.clone();
                 tokio::spawn(async move {
                     loop {
@@ -243,6 +274,7 @@ impl ServeCommand {
                 });
             }
         }
+
         if let Ok(client) = args.undoc_args.api_client() {
             if let Err(err) = enumerate_devices_via_undo_api(
                 state.clone(),
@@ -254,12 +286,9 @@ impl ServeCommand {
                 log::error!("Error during initial undoc API discovery: {err:#}");
                 api_discovery_failed = true;
             } else {
-                // only record the client after we've completed the
-                // initial undoc disco attempt
                 state.set_undoc_client(client).await;
             }
 
-            // spawn periodic discovery task
             let state = state.clone();
             let args = args.undoc_args.clone();
             tokio::spawn(async move {
@@ -274,7 +303,6 @@ impl ServeCommand {
             });
         }
 
-        // If API discovery succeeded, update and save the device database
         if !api_discovery_failed {
             let devices = state.devices().await;
             if !devices.is_empty() {
@@ -288,17 +316,15 @@ impl ServeCommand {
                 }
             }
         } else if !device_db.devices.is_empty() {
-            // API failed but we have cached device data — populate state from database
             log::warn!(
                 "API discovery failed. Using cached device database ({} devices). \
                  Some features may be limited.",
                 device_db.devices.len()
             );
-            for (_id, persisted) in &device_db.devices {
+            for persisted in device_db.devices.values() {
                 let mut device = state
                     .device_mut(&persisted.sku, &persisted.device_id)
                     .await;
-                // Set minimal info so the device shows up in HA with its name
                 device.set_http_device_info(crate::platform_api::HttpDeviceInfo {
                     sku: persisted.sku.clone(),
                     device: persisted.device_id.clone(),
@@ -313,50 +339,59 @@ impl ServeCommand {
             );
         }
 
-        // Now start LAN discovery
+        Ok(())
+    }
 
+    /// Start LAN UDP discovery and wait for initial device probes.
+    async fn start_lan_discovery(
+        state: &StateHandle,
+        args: &crate::Args,
+    ) -> anyhow::Result<()> {
         let options = args.lan_disco_args.to_disco_options()?;
-        if !options.is_empty() {
-            log::info!("Starting LAN discovery");
-            let state = state.clone();
-            let (client, mut scan) = LanClient::new(options).await?;
-
-            state.set_lan_client(client.clone()).await;
-
-            tokio::spawn(async move {
-                while let Some(lan_device) = scan.recv().await {
-                    log::trace!("LAN disco: {lan_device:?}");
-                    state
-                        .device_mut(&lan_device.sku, &lan_device.device)
-                        .await
-                        .set_lan_device(lan_device.clone());
-
-                    let state = state.clone();
-                    let client = client.clone();
-                    tokio::spawn(async move {
-                        if let Ok(status) = client.query_status(&lan_device).await {
-                            state
-                                .device_mut(&lan_device.sku, &lan_device.device)
-                                .await
-                                .set_lan_device_status(status);
-
-                            log::trace!("LAN disco: update and notify {}", lan_device.device);
-                            state.notify_of_state_change(&lan_device.device).await.ok();
-                        }
-                    });
-                }
-            });
-
-            // I don't love that this is 10 seconds but since our timeout
-            // for query_status is 10 seconds, and we show a warning for
-            // devices that didn't respond in the section below, in the
-            // interest of reducing false positives we need to wait long
-            // enough to provide high-signal warnings.
-            log::info!("Waiting 10 seconds for LAN API discovery");
-            sleep(Duration::from_secs(10)).await;
+        if options.is_empty() {
+            return Ok(());
         }
 
-        log::info!("Devices returned from Govee's APIs");
+        log::info!("Starting LAN discovery");
+        let state = state.clone();
+        let (client, mut scan) = LanClient::new(options).await?;
+
+        state.set_lan_client(client.clone()).await;
+
+        tokio::spawn(async move {
+            while let Some(lan_device) = scan.recv().await {
+                log::trace!("LAN disco: {lan_device:?}");
+                state
+                    .device_mut(&lan_device.sku, &lan_device.device)
+                    .await
+                    .set_lan_device(lan_device.clone());
+
+                let state = state.clone();
+                let client = client.clone();
+                tokio::spawn(async move {
+                    if let Ok(status) = client.query_status(&lan_device).await {
+                        state
+                            .device_mut(&lan_device.sku, &lan_device.device)
+                            .await
+                            .set_lan_device_status(status);
+
+                        log::trace!("LAN disco: update and notify {}", lan_device.device);
+                        state.notify_of_state_change(&lan_device.device).await.ok();
+                    }
+                });
+            }
+        });
+
+        log::info!("Waiting 10 seconds for LAN API discovery");
+        sleep(Duration::from_secs(10)).await;
+
+        Ok(())
+    }
+
+    /// Log all discovered devices with their API capabilities.
+    async fn log_discovered_devices(state: &StateHandle) {
+        let device_count = state.devices().await.len();
+        log::info!("Discovered {device_count} devices:");
         for device in state.devices().await {
             log::info!("{device}");
             if let Some(lan) = &device.lan_device {
@@ -401,8 +436,6 @@ impl ServeCommand {
             if let Some(quirk) = device.resolve_quirk() {
                 log::info!("  {quirk:?}");
 
-                // Sanity check for LAN devices: if we don't see an API for it,
-                // it may indicate a networking issue
                 if quirk.lan_api_capable && device.lan_device.is_none() {
                     log::warn!(
                         "  This device should be available via the LAN API, \
@@ -430,8 +463,14 @@ impl ServeCommand {
 
             log::info!("");
         }
+    }
 
-        // Set up extensions
+    /// Start all runtime services: extensions, polling, MQTT, HTTP.
+    async fn start_services(
+        http_port: u16,
+        state: &StateHandle,
+        args: &crate::Args,
+    ) -> anyhow::Result<()> {
         let mut extensions = ExtensionManager::new();
         extensions.add(AvailabilityExtension::new());
         extensions.add(HealthExtension);
@@ -440,7 +479,6 @@ impl ServeCommand {
         let extensions = Arc::new(extensions);
         extensions.start_all().await;
 
-        // Start periodic status polling
         {
             let state = state.clone();
             let extensions = extensions.clone();
@@ -451,10 +489,8 @@ impl ServeCommand {
             });
         }
 
-        // start advertising on local mqtt
         spawn_hass_integration(state.clone(), &args.hass_args).await?;
 
-        // Start Govee official MQTT push subscription if API key is available
         if let Ok(Some(api_key)) = args.api_args.opt_api_key() {
             if let Err(err) =
                 crate::service::govee_push::start_govee_push_client(&api_key, state.clone()).await
@@ -463,10 +499,8 @@ impl ServeCommand {
             }
         }
 
-        // Run HTTP server with graceful shutdown on SIGTERM
         let shutdown_state = state.clone();
         let shutdown_extensions = extensions.clone();
-        let http_port = self.http_port;
 
         tokio::select! {
             result = run_http_server(state.clone(), http_port) => {
@@ -497,5 +531,39 @@ impl ServeCommand {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_poll_interval_defaults_to_120s() {
+        assert_eq!(parse_poll_interval(None), chrono::Duration::seconds(120));
+    }
+
+    #[test]
+    fn parse_poll_interval_accepts_valid_override() {
+        assert_eq!(
+            parse_poll_interval(Some("900")),
+            chrono::Duration::seconds(900)
+        );
+    }
+
+    #[test]
+    fn parse_poll_interval_ignores_non_numeric() {
+        assert_eq!(
+            parse_poll_interval(Some("not_a_number")),
+            chrono::Duration::seconds(120)
+        );
+    }
+
+    #[test]
+    fn parse_poll_interval_ignores_empty_string() {
+        assert_eq!(
+            parse_poll_interval(Some("")),
+            chrono::Duration::seconds(120)
+        );
     }
 }

@@ -547,14 +547,7 @@ async fn health_check(State(state): State<StateHandle>) -> Response {
     let now = chrono::Utc::now();
     let mut online = 0u32;
     for device in &devices {
-        let stale = device.preferred_poll_interval() * 3;
-        let is_online = device
-            .last_polled
-            .or(device.last_lan_device_status_update)
-            .or(device.last_iot_device_status_update)
-            .or(device.last_http_device_state_update)
-            .map(|last| now - last < stale)
-            .unwrap_or(false);
+        let is_online = device.is_online(now);
         if is_online {
             online += 1;
         }

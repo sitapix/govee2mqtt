@@ -67,18 +67,26 @@ impl GoveeApiArguments {
 
     pub fn api_client(&self) -> anyhow::Result<GoveeApiClient> {
         let key = self.api_key()?;
-        Ok(GoveeApiClient::new(key))
+        GoveeApiClient::new(key)
     }
 }
 
 #[derive(Clone)]
 pub struct GoveeApiClient {
     key: String,
+    http: reqwest::Client,
 }
 
 impl GoveeApiClient {
-    pub fn new<K: Into<String>>(key: K) -> Self {
-        Self { key: key.into() }
+    pub fn new<K: Into<String>>(key: K) -> anyhow::Result<Self> {
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(60))
+            .build()
+            .context("failed to build HTTP client")?;
+        Ok(Self {
+            key: key.into(),
+            http,
+        })
     }
 
     pub async fn get_devices(&self) -> anyhow::Result<Vec<HttpDeviceInfo>> {
@@ -1217,9 +1225,12 @@ pub struct HttpRequestFailed {
 }
 
 impl HttpRequestFailed {
-    #[allow(unused)]
     pub fn from_err(err: &anyhow::Error) -> Option<&Self> {
         err.root_cause().downcast_ref::<Self>()
+    }
+
+    pub fn content_contains(&self, needle: &str) -> bool {
+        self.content.contains(needle)
     }
 }
 
@@ -1323,27 +1334,7 @@ impl GoveeApiClient {
         &self,
         url: T,
     ) -> anyhow::Result<R> {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
-            .build()?;
-
-        for attempt in 0..=MAX_RETRIES {
-            let response = client
-                .request(Method::GET, url.clone())
-                .header("Govee-API-Key", &self.key)
-                .send()
-                .await?;
-
-            match retry_or_return(response, attempt).await {
-                RetryDecision::Success(resp) => return http_response_body(resp).await,
-                RetryDecision::Retry(delay) => {
-                    tokio::time::sleep(delay).await;
-                }
-                RetryDecision::Fail(resp) => return http_response_body(resp).await,
-            }
-        }
-
-        anyhow::bail!("Govee API request failed after {MAX_RETRIES} retries");
+        self.request_with_retry(Method::GET, url, None::<&()>).await
     }
 
     async fn request_with_json_response<
@@ -1356,17 +1347,28 @@ impl GoveeApiClient {
         url: T,
         body: &B,
     ) -> anyhow::Result<R> {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
-            .build()?;
+        self.request_with_retry(method, url, Some(body)).await
+    }
 
+    async fn request_with_retry<
+        T: reqwest::IntoUrl + Clone,
+        B: serde::Serialize,
+        R: serde::de::DeserializeOwned,
+    >(
+        &self,
+        method: Method,
+        url: T,
+        body: Option<&B>,
+    ) -> anyhow::Result<R> {
         for attempt in 0..=MAX_RETRIES {
-            let response = client
+            let mut request = self
+                .http
                 .request(method.clone(), url.clone())
-                .header("Govee-API-Key", &self.key)
-                .json(body)
-                .send()
-                .await?;
+                .header("Govee-API-Key", &self.key);
+            if let Some(body) = body {
+                request = request.json(body);
+            }
+            let response = request.send().await?;
 
             match retry_or_return(response, attempt).await {
                 RetryDecision::Success(resp) => return http_response_body(resp).await,
@@ -1452,6 +1454,11 @@ mod test {
         }
     }
 
+    #[test]
+    fn client_construction_succeeds() {
+        GoveeApiClient::new("test-key").unwrap();
+    }
+
     const SCENE_LIST: &str = include_str!("../test-data/scenes.json");
 
     #[test]
@@ -1504,7 +1511,7 @@ mod test {
 
     #[test]
     fn list_music_mode_names_reads_struct_enum_options() {
-        let client = GoveeApiClient::new("dummy");
+        let client = GoveeApiClient::new("dummy").unwrap();
         let device = HttpDeviceInfo {
             sku: "H6000".to_string(),
             device: "aa:bb".to_string(),
@@ -1560,7 +1567,7 @@ mod test {
 
     #[test]
     fn list_music_mode_names_returns_empty_when_capability_is_missing() {
-        let client = GoveeApiClient::new("dummy");
+        let client = GoveeApiClient::new("dummy").unwrap();
         let device = HttpDeviceInfo {
             sku: "H6000".to_string(),
             device: "aa:bb".to_string(),
@@ -1575,7 +1582,7 @@ mod test {
 
     #[tokio::test]
     async fn merged_enum_capability_deduplicates_local_options() {
-        let client = GoveeApiClient::new("dummy");
+        let client = GoveeApiClient::new("dummy").unwrap();
         let device = HttpDeviceInfo {
             sku: "H7160".to_string(),
             device: "aa:bb".to_string(),

@@ -1,9 +1,9 @@
-use crate::hass_mqtt::base::{Device, EntityConfig, Origin};
+use crate::hass_mqtt::base::EntityConfig;
 use crate::hass_mqtt::instance::{lookup_entity_device, publish_entity_config, EntityInstance};
 use crate::platform_api::DeviceType;
 use crate::service::device::Device as ServiceDevice;
 use crate::service::hass::{
-    device_availability_entries, kelvin_to_mired, light_segment_state_topic, light_state_topic,
+    kelvin_to_mired, light_segment_state_topic, light_state_topic,
     topic_safe_id, HassClient,
 };
 use crate::service::state::StateHandle;
@@ -221,7 +221,6 @@ impl DeviceLight {
             Some(seg) => light_segment_state_topic(device, seg),
             None => light_state_topic(device),
         };
-        let (availability, availability_mode) = device_availability_entries(device);
         let unique_id = format!(
             "gv2mqtt-{id}{seg}",
             id = topic_safe_id(device),
@@ -281,18 +280,7 @@ impl DeviceLight {
 
         Ok(Self {
             light: LightConfig {
-                base: EntityConfig {
-                    availability_topic: String::new(),
-                    availability,
-                    availability_mode,
-                    name,
-                    device_class: None,
-                    origin: Origin::default(),
-                    device: Device::for_device(device),
-                    unique_id,
-                    entity_category: None,
-                    icon: None,
-                },
+                base: EntityConfig::for_device(device, name, unique_id),
                 schema: "json".to_string(),
                 command_topic,
                 state_topic,

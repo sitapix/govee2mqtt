@@ -104,6 +104,13 @@ configuration:
       discovery. Only matching effects are included
       (case-insensitive). Leave blank for all effects. Ignored
       when Disable Effects is enabled.
+  poll_interval:
+    name: "Poll Interval (Advanced)"
+    description: >-
+      How often (in seconds) to poll device state via the Platform
+      API. Default is 120. Increase to 900 if you have many devices
+      without IoT or LAN support to avoid exceeding Govee's 10,000
+      request/day API limit. Most users should leave this blank.
 
 
 

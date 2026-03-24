@@ -38,6 +38,32 @@ pub struct EntityConfig {
     pub icon: Option<String>,
 }
 
+impl EntityConfig {
+    /// Create an EntityConfig for a device with standard defaults.
+    /// Sets availability from the device, origin, and device info.
+    /// device_class, entity_category, and icon default to None.
+    pub fn for_device(
+        device: &ServiceDevice,
+        name: impl Into<Option<String>>,
+        unique_id: String,
+    ) -> Self {
+        let (availability, availability_mode) =
+            crate::service::hass::device_availability_entries(device);
+        Self {
+            availability_topic: String::new(),
+            availability,
+            availability_mode,
+            name: name.into(),
+            device_class: None,
+            origin: Origin::default(),
+            device: Device::for_device(device),
+            unique_id,
+            entity_category: None,
+            icon: None,
+        }
+    }
+}
+
 #[derive(Serialize, Clone, Debug)]
 pub struct Origin {
     pub name: &'static str,

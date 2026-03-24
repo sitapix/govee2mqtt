@@ -1,9 +1,9 @@
-use crate::hass_mqtt::base::{Device, EntityConfig, Origin};
+use crate::hass_mqtt::base::EntityConfig;
 use crate::hass_mqtt::instance::{lookup_entity_device, publish_entity_config, EntityInstance};
 use crate::platform_api::DeviceCapability;
 use crate::service::device::Device as ServiceDevice;
 use crate::service::hass::{
-    camel_case_to_space_separated, device_availability_entries, switch_instance_state_topic,
+    camel_case_to_space_separated, switch_instance_state_topic,
     topic_safe_id, HassClient, IdParameter,
 };
 use crate::service::state::StateHandle;
@@ -34,7 +34,6 @@ impl SwitchConfig {
             inst = instance.instance
         );
         let state_topic = switch_instance_state_topic(device, &instance.instance);
-        let (availability, availability_mode) = device_availability_entries(device);
         let unique_id = format!(
             "gv2mqtt-{id}-{inst}",
             id = topic_safe_id(device),
@@ -42,18 +41,11 @@ impl SwitchConfig {
         );
 
         Ok(Self {
-            base: EntityConfig {
-                availability_topic: String::new(),
-                availability,
-                availability_mode,
-                name: Some(camel_case_to_space_separated(&instance.instance)),
-                device_class: None,
-                origin: Origin::default(),
-                device: Device::for_device(device),
+            base: EntityConfig::for_device(
+                device,
+                Some(camel_case_to_space_separated(&instance.instance)),
                 unique_id,
-                entity_category: None,
-                icon: None,
-            },
+            ),
             command_topic,
             state_topic,
             enabled_by_default: None,
@@ -160,22 +152,13 @@ impl MusicAutoColorSwitch {
     pub fn new(device: &ServiceDevice, state: &StateHandle) -> Self {
         let unique_id = format!("gv2mqtt-{id}-music-auto-color", id = topic_safe_id(device));
 
-        let (availability, availability_mode) = device_availability_entries(device);
-
         Self {
             switch: SwitchConfig {
-                base: EntityConfig {
-                    availability_topic: String::new(),
-                    availability,
-                    availability_mode,
-                    name: Some("Music Auto Color".to_string()),
-                    device_class: None,
-                    origin: Origin::default(),
-                    device: Device::for_device(device),
+                base: EntityConfig::for_device(
+                    device,
+                    Some("Music Auto Color".to_string()),
                     unique_id,
-                    entity_category: None,
-                    icon: None,
-                },
+                ),
                 command_topic: format!(
                     "gv2mqtt/{id}/set-music-auto-color",
                     id = topic_safe_id(device)
@@ -251,6 +234,32 @@ mod tests {
     use crate::service::device::Device;
     use crate::service::state::State;
     use std::sync::Arc;
+
+    #[tokio::test]
+    async fn switch_for_device_uses_entity_config_for_device() {
+        use crate::hass_mqtt::switch::SwitchConfig;
+        use crate::platform_api::{DeviceCapability, DeviceCapabilityKind};
+
+        let device = Device::new("H6000", "AA:BB");
+        let cap = DeviceCapability {
+            kind: DeviceCapabilityKind::Toggle,
+            instance: "powerSwitch".to_string(),
+            parameters: None,
+            alarm_type: None,
+            event_state: None,
+        };
+        let switch = SwitchConfig::for_device(&device, &cap).await.unwrap();
+        assert_eq!(
+            switch.base.name.as_deref(),
+            Some("Power Switch")
+        );
+        assert_eq!(switch.command_topic, "gv2mqtt/switch/AABB/command/powerSwitch");
+        assert_eq!(
+            switch.state_topic,
+            "gv2mqtt/switch/AABB/powerSwitch/state"
+        );
+        assert!(switch.enabled_by_default.is_none());
+    }
 
     #[test]
     fn music_auto_color_switch_has_expected_topics_and_registry_defaults() {

@@ -46,3 +46,7 @@ schema:
   scan: "str?"
   disable_effects: "bool?"
   allowed_effects: "str?"
+  # Advanced: polling interval in seconds (default 120).
+  # Increase to 900 if you have many devices without IoT/LAN support
+  # to avoid exceeding the Govee API rate limit (10,000 req/day).
+  poll_interval: "int?"

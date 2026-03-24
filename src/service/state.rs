@@ -1,6 +1,6 @@
 use crate::ble::{Base64HexBytes, SetHumidifierMode, SetHumidifierNightlightParams};
 use crate::lan_api::{Client as LanClient, DeviceStatus as LanDeviceStatus, LanDevice};
-use crate::platform_api::{DeviceCapability, DeviceType, GoveeApiClient};
+use crate::platform_api::{DeviceCapability, DeviceType, GoveeApiClient, HttpRequestFailed};
 use crate::service::coordinator::Coordinator;
 use crate::service::device::Device;
 use crate::service::hass::{topic_safe_id, topic_safe_string, HassClient};
@@ -207,19 +207,42 @@ impl State {
         self.undoc_client.lock().await.clone()
     }
 
+    /// Returns the IoT client and device's undoc entry if IoT control
+    /// is available for the given device.
+    async fn iot_for_device<'d>(
+        &self,
+        device: &'d Device,
+    ) -> Option<(IotClient, &'d crate::undoc_api::DeviceEntry)> {
+        if !device.iot_api_supported() {
+            return None;
+        }
+        let iot = self.get_iot_client().await?;
+        let entry = match device.undoc_device_info.as_ref() {
+            Some(info) => &info.entry,
+            None => {
+                log::trace!(
+                    "device {device} reports IoT supported but has no undoc entry; \
+                     falling back to Platform API"
+                );
+                return None;
+            }
+        };
+        Some((iot, entry))
+    }
+
     pub async fn poll_iot_api(self: &Arc<Self>, device: &Device) -> anyhow::Result<bool> {
         if let Some(iot) = self.get_iot_client().await {
             if let Some(info) = device.undoc_device_info.clone() {
                 if iot.is_device_compatible(&info.entry) {
                     let device_state = device.device_state();
-                    log::info!("requesting update via IoT MQTT {device} {device_state:?}");
+                    log::trace!("requesting update via IoT MQTT {device} {device_state:?}");
                     match iot
                         .request_status_update(&info.entry)
                         .await
                         .context("iot.request_status_update")
                     {
                         Err(err) => {
-                            log::error!("Failed: {err:#}");
+                            log::error!("IoT status request failed for {device}: {err:#}");
                         }
                         Ok(()) => {
                             // The response will come in async via the mqtt loop in iot.rs
@@ -240,6 +263,18 @@ impl State {
     }
 
     pub async fn poll_platform_api(self: &Arc<Self>, device: &Device) -> anyhow::Result<bool> {
+        // `device` is a cloned snapshot from state.devices(). The cooldown field
+        // may be stale within a single poll cycle, but is accurate across cycles
+        // since the 30-min cooldown far exceeds the 30s poll interval.
+        if let Some(until) = device.platform_not_belong_until {
+            if chrono::Utc::now() < until {
+                log::trace!(
+                    "device {device} skipped: 'devices not belong you' cooldown until {until}"
+                );
+                return Ok(false);
+            }
+        }
+
         if let Some(client) = self.get_platform_client().await {
             if let DeviceType::Other(other) = &device.device_type() {
                 // Cannot poll an unknown device
@@ -251,23 +286,42 @@ impl State {
             }
 
             let device_state = device.device_state();
-            log::info!("requesting update via Platform API {device} {device_state:?}");
+            log::trace!("requesting update via Platform API {device} {device_state:?}");
             if let Some(info) = &device.http_device_info {
-                let http_state = client
-                    .get_device_state(info)
-                    .await
-                    .context("get_device_state")?;
-                log::trace!("updated state for {device}");
-
-                {
-                    let mut device = self.device_mut(&device.sku, &device.id).await;
-                    device.set_http_device_state(http_state);
-                    device.set_last_polled();
+                match client.get_device_state(info).await {
+                    Ok(http_state) => {
+                        log::trace!("updated state for {device}");
+                        {
+                            let mut device = self.device_mut(&device.sku, &device.id).await;
+                            device.set_http_device_state(http_state);
+                            device.set_last_polled();
+                        }
+                        self.notify_of_state_change(&device.id)
+                            .await
+                            .context("state.notify_of_state_change")?;
+                        return Ok(true);
+                    }
+                    Err(err) => {
+                        // Govee returns HTTP 200 with embedded status 400 and
+                        // msg "devices not belong you" for devices no longer
+                        // associated with the account (or BLE-only devices).
+                        if let Some(http_err) = HttpRequestFailed::from_err(&err) {
+                            if http_err.content_contains("devices not belong you") {
+                                let retry_at = chrono::Utc::now() + chrono::Duration::minutes(30);
+                                log::warn!(
+                                    "Device {device} is not associated with your Govee account \
+                                     (or is BLE-only). Skipping Platform API polls for 30 minutes. \
+                                     If this device should be yours, re-add it in the Govee app."
+                                );
+                                self.device_mut(&device.sku, &device.id)
+                                    .await
+                                    .platform_not_belong_until = Some(retry_at);
+                                return Ok(false);
+                            }
+                        }
+                        return Err(err).context("get_device_state");
+                    }
                 }
-                self.notify_of_state_change(&device.id)
-                    .await
-                    .context("state.notify_of_state_change")?;
-                return Ok(true);
             }
         } else {
             log::trace!(
@@ -349,14 +403,10 @@ impl State {
             return Ok(());
         }
 
-        if device.iot_api_supported() {
-            if let Some(iot) = self.get_iot_client().await {
-                if let Some(info) = &device.undoc_device_info {
-                    log::info!("Using IoT API to set {device} light power state");
-                    iot.set_power_state(&info.entry, on).await?;
-                    return Ok(());
-                }
-            }
+        if let Some((iot, entry)) = self.iot_for_device(device).await {
+            log::info!("Using IoT API to set {device} light power state");
+            iot.set_power_state(entry, on).await?;
+            return Ok(());
         }
 
         if let Some(client) = self.get_platform_client().await {
@@ -382,14 +432,10 @@ impl State {
             return Ok(());
         }
 
-        if device.iot_api_supported() {
-            if let Some(iot) = self.get_iot_client().await {
-                if let Some(info) = &device.undoc_device_info {
-                    log::info!("Using IoT API to set {device} power state");
-                    iot.set_power_state(&info.entry, on).await?;
-                    return Ok(());
-                }
-            }
+        if let Some((iot, entry)) = self.iot_for_device(device).await {
+            log::info!("Using IoT API to set {device} power state");
+            iot.set_power_state(entry, on).await?;
+            return Ok(());
         }
 
         if let Some(client) = self.get_platform_client().await {
@@ -426,14 +472,10 @@ impl State {
             return Ok(());
         }
 
-        if device.iot_api_supported() {
-            if let Some(iot) = self.get_iot_client().await {
-                if let Some(info) = &device.undoc_device_info {
-                    log::info!("Using IoT API to set {device} brightness");
-                    iot.set_brightness(&info.entry, percent).await?;
-                    return Ok(());
-                }
-            }
+        if let Some((iot, entry)) = self.iot_for_device(device).await {
+            log::info!("Using IoT API to set {device} brightness");
+            iot.set_brightness(entry, percent).await?;
+            return Ok(());
         }
 
         if let Some(client) = self.get_platform_client().await {
@@ -462,14 +504,10 @@ impl State {
             return Ok(());
         }
 
-        if device.iot_api_supported() {
-            if let Some(iot) = self.get_iot_client().await {
-                if let Some(info) = &device.undoc_device_info {
-                    log::info!("Using IoT API to set {device} color temperature");
-                    iot.set_color_temperature(&info.entry, kelvin).await?;
-                    return Ok(());
-                }
-            }
+        if let Some((iot, entry)) = self.iot_for_device(device).await {
+            log::info!("Using IoT API to set {device} color temperature");
+            iot.set_color_temperature(entry, kelvin).await?;
+            return Ok(());
         }
 
         if let Some(client) = self.get_platform_client().await {
@@ -569,14 +607,10 @@ impl State {
             return Ok(());
         }
 
-        if device.iot_api_supported() {
-            if let Some(iot) = self.get_iot_client().await {
-                if let Some(info) = &device.undoc_device_info {
-                    log::info!("Using IoT API to set {device} color");
-                    iot.set_color_rgb(&info.entry, r, g, b).await?;
-                    return Ok(());
-                }
-            }
+        if let Some((iot, entry)) = self.iot_for_device(device).await {
+            log::info!("Using IoT API to set {device} color");
+            iot.set_color_rgb(entry, r, g, b).await?;
+            return Ok(());
         }
 
         if let Some(client) = self.get_platform_client().await {

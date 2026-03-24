@@ -1,10 +1,10 @@
-use crate::hass_mqtt::base::{Device, EntityConfig, Origin};
+use crate::hass_mqtt::base::EntityConfig;
 use crate::hass_mqtt::instance::{lookup_entity_device, publish_entity_config, EntityInstance};
 use crate::hass_mqtt::work_mode::ParsedWorkMode;
 use crate::platform_api::DeviceParameters;
 use crate::service::device::Device as ServiceDevice;
 use crate::service::hass::{
-    device_availability_entries, topic_safe_id, topic_safe_string, HassClient, IdParameter,
+    topic_safe_id, topic_safe_string, HassClient, IdParameter,
 };
 use crate::service::state::StateHandle;
 use anyhow::Context;
@@ -38,23 +38,11 @@ impl WorkModeSelect {
     pub fn new(device: &ServiceDevice, work_modes: &ParsedWorkMode, state: &StateHandle) -> Self {
         let command_topic = format!("gv2mqtt/{id}/set-work-mode", id = topic_safe_id(device),);
         let state_topic = format!("gv2mqtt/{id}/notify-work-mode", id = topic_safe_id(device));
-        let (availability, availability_mode) = device_availability_entries(device);
         let unique_id = format!("gv2mqtt-{id}-workMode", id = topic_safe_id(device),);
 
         Self {
             select: SelectConfig {
-                base: EntityConfig {
-                    availability_topic: String::new(),
-                    availability,
-                    availability_mode,
-                    name: Some("Mode".to_string()),
-                    device_class: None,
-                    origin: Origin::default(),
-                    device: Device::for_device(device),
-                    unique_id,
-                    entity_category: None,
-                    icon: None,
-                },
+                base: EntityConfig::for_device(device, Some("Mode".to_string()), unique_id),
                 command_topic,
                 state_topic,
                 options: work_modes.get_mode_names(),
@@ -119,23 +107,11 @@ impl SceneModeSelect {
 
         let command_topic = format!("gv2mqtt/{id}/set-mode-scene", id = topic_safe_id(device));
         let state_topic = format!("gv2mqtt/{id}/notify-mode-scene", id = topic_safe_id(device));
-        let (availability, availability_mode) = device_availability_entries(device);
         let unique_id = format!("gv2mqtt-{id}-mode-scene", id = topic_safe_id(device));
 
         Ok(Some(Self {
             select: SelectConfig {
-                base: EntityConfig {
-                    availability_topic: String::new(),
-                    availability,
-                    availability_mode,
-                    name: Some("Mode/Scene".to_string()),
-                    device_class: None,
-                    origin: Origin::default(),
-                    device: Device::for_device(device),
-                    unique_id,
-                    entity_category: None,
-                    icon: None,
-                },
+                base: EntityConfig::for_device(device, Some("Mode/Scene".to_string()), unique_id),
                 command_topic,
                 state_topic,
                 options: scenes,
@@ -243,22 +219,9 @@ impl EnumCapabilitySelect {
             instance = topic_safe_string(instance_name)
         );
 
-        let (availability, availability_mode) = device_availability_entries(device);
-
         Ok(Some(Self {
             select: SelectConfig {
-                base: EntityConfig {
-                    availability_topic: String::new(),
-                    availability,
-                    availability_mode,
-                    name: Some(label.to_string()),
-                    device_class: None,
-                    origin: Origin::default(),
-                    device: Device::for_device(device),
-                    unique_id,
-                    entity_category: None,
-                    icon: None,
-                },
+                base: EntityConfig::for_device(device, Some(label.to_string()), unique_id),
                 command_topic,
                 options,
                 state_topic,
@@ -327,22 +290,9 @@ impl MusicModeSelect {
         let state_topic = format!("gv2mqtt/{id}/notify-music-mode", id = topic_safe_id(device));
         let unique_id = format!("gv2mqtt-{id}-music-mode-select", id = topic_safe_id(device));
 
-        let (availability, availability_mode) = device_availability_entries(device);
-
         Ok(Some(Self {
             select: SelectConfig {
-                base: EntityConfig {
-                    availability_topic: String::new(),
-                    availability,
-                    availability_mode,
-                    name: Some("Music Mode".to_string()),
-                    device_class: None,
-                    origin: Origin::default(),
-                    device: Device::for_device(device),
-                    unique_id,
-                    entity_category: None,
-                    icon: None,
-                },
+                base: EntityConfig::for_device(device, Some("Music Mode".to_string()), unique_id),
                 command_topic,
                 options,
                 state_topic,

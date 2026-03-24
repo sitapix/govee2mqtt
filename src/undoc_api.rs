@@ -1,4 +1,5 @@
 #![allow(unused)]
+use anyhow::Context;
 use crate::cache::{cache_get, CacheComputeResult, CacheGetOptions};
 use crate::lan_api::{boolean_int, truthy};
 use crate::opt_env_var;
@@ -11,16 +12,25 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use std::path::PathBuf;
+use once_cell::sync::Lazy;
 use std::time::Duration;
 use uuid::Uuid;
 
 // <https://github.com/constructorfleet/homebridge-ultimate-govee/blob/main/src/data/clients/RestClient.ts>
 
-const APP_VERSION: &str = "5.6.01";
+const APP_VERSION: &str = "6.5.02";
 const HALF_DAY: Duration = Duration::from_secs(3600 * 12);
 const ONE_DAY: Duration = Duration::from_secs(86400);
 const ONE_WEEK: Duration = Duration::from_secs(86400 * 7);
 const FIFTEEN_MINS: Duration = Duration::from_secs(60 * 15);
+
+/// Shared HTTP client for associated functions that don't have access to an instance.
+static SHARED_HTTP: Lazy<reqwest::Client> = Lazy::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("failed to build shared HTTP client")
+});
 
 /// Some data is not meant for human eyes except in very unusual circumstances.
 #[derive(Deserialize, Serialize, Clone)]
@@ -129,7 +139,7 @@ impl UndocApiArguments {
     pub fn api_client(&self) -> anyhow::Result<GoveeUndocumentedApi> {
         let email = self.email()?;
         let password = self.password()?;
-        Ok(GoveeUndocumentedApi::new(email, password))
+        GoveeUndocumentedApi::new(email, password)
     }
 }
 
@@ -138,19 +148,36 @@ pub struct GoveeUndocumentedApi {
     email: String,
     password: String,
     client_id: String,
+    http: reqwest::Client,
 }
 
 impl GoveeUndocumentedApi {
-    pub fn new<E: Into<String>, P: Into<String>>(email: E, password: P) -> Self {
+    pub fn new<E: Into<String>, P: Into<String>>(email: E, password: P) -> anyhow::Result<Self> {
         let email = email.into();
         let password = password.into();
         let client_id = Uuid::new_v5(&Uuid::NAMESPACE_DNS, email.as_bytes());
         let client_id = format!("{}", client_id.simple());
-        Self {
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .context("failed to build HTTP client")?;
+        Ok(Self {
             email,
             password,
             client_id,
-        }
+            http,
+        })
+    }
+
+    /// Applies the standard Govee app headers to a request builder.
+    fn govee_headers(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        builder
+            .header("appVersion", APP_VERSION)
+            .header("clientId", &self.client_id)
+            .header("clientType", "1")
+            .header("iotVersion", "0")
+            .header("timestamp", ms_timestamp())
+            .header("User-Agent", user_agent())
     }
 
     #[allow(unused)]
@@ -165,19 +192,11 @@ impl GoveeUndocumentedApi {
                 allow_stale: false,
             },
             async {
-                let response = reqwest::Client::builder()
-                    .timeout(Duration::from_secs(30))
-                    .build()?
+                let request = self
+                    .http
                     .request(Method::GET, "https://app2.govee.com/app/v1/account/iot/key")
-                    .header("Authorization", format!("Bearer {token}"))
-                    .header("appVersion", APP_VERSION)
-                    .header("clientId", &self.client_id)
-                    .header("clientType", "1")
-                    .header("iotVersion", "0")
-                    .header("timestamp", ms_timestamp())
-                    .header("User-Agent", user_agent())
-                    .send()
-                    .await?;
+                    .header("Authorization", format!("Bearer {token}"));
+                let response = self.govee_headers(request).send().await?;
 
                 #[derive(Deserialize, Debug)]
                 #[allow(non_snake_case, dead_code)]
@@ -200,13 +219,12 @@ impl GoveeUndocumentedApi {
     }
 
     async fn login_account_impl(&self) -> anyhow::Result<CacheComputeResult<LoginAccountResponse>> {
-        let response = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .build()?
-            .request(
-                Method::POST,
-                "https://app2.govee.com/account/rest/account/v1/login",
-            )
+        let request = self.http.request(
+            Method::POST,
+            "https://app2.govee.com/account/rest/account/v1/login",
+        );
+        let response = self
+            .govee_headers(request)
             .json(&serde_json::json!({
                 "email": self.email,
                 "password": self.password,
@@ -251,22 +269,14 @@ impl GoveeUndocumentedApi {
     }
 
     pub async fn get_device_list(&self, token: &str) -> anyhow::Result<DevicesResponse> {
-        let response = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .build()?
+        let request = self
+            .http
             .request(
                 Method::POST,
                 "https://app2.govee.com/device/rest/devices/v1/list",
             )
-            .header("Authorization", format!("Bearer {token}"))
-            .header("appVersion", APP_VERSION)
-            .header("clientId", &self.client_id)
-            .header("clientType", "1")
-            .header("iotVersion", "0")
-            .header("timestamp", ms_timestamp())
-            .header("User-Agent", user_agent())
-            .send()
-            .await?;
+            .header("Authorization", format!("Bearer {token}"));
+        let response = self.govee_headers(request).send().await?;
 
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
             self.invalidate_account_login();
@@ -293,10 +303,10 @@ impl GoveeUndocumentedApi {
                 allow_stale: false,
             },
             async {
-                let response = reqwest::Client::builder()
-                    .timeout(Duration::from_secs(60))
-                    .build()?
+                let response = self
+                    .http
                     .request(Method::POST, "https://community-api.govee.com/os/v1/login")
+                    .timeout(Duration::from_secs(60))
                     .json(&serde_json::json!({
                         "email": self.email,
                         "password": self.password,
@@ -352,15 +362,14 @@ impl GoveeUndocumentedApi {
                 allow_stale: true,
             },
             async {
-                let response = reqwest::Client::builder()
-                    .timeout(Duration::from_secs(10))
-                    .build()?
+                let response = SHARED_HTTP
                     .request(
                         Method::GET,
                         format!(
                             "https://app2.govee.com/appsku/v1/light-effect-libraries?sku={sku}"
                         ),
                     )
+                    .timeout(Duration::from_secs(10))
                     .header("AppVersion", APP_VERSION)
                     .header("User-Agent", user_agent())
                     .send()
@@ -420,22 +429,15 @@ impl GoveeUndocumentedApi {
                 allow_stale: true,
             },
             async {
-                let response = reqwest::Client::builder()
-                    .timeout(Duration::from_secs(10))
-                    .build()?
+                let request = self
+                    .http
                     .request(
                         Method::GET,
                         "https://app2.govee.com/bff-app/v1/exec-plat/home",
                     )
-                    .header("Authorization", format!("Bearer {community_token}"))
-                    .header("appVersion", APP_VERSION)
-                    .header("clientId", &self.client_id)
-                    .header("clientType", "1")
-                    .header("iotVersion", "0")
-                    .header("timestamp", ms_timestamp())
-                    .header("User-Agent", user_agent())
-                    .send()
-                    .await?;
+                    .timeout(Duration::from_secs(10))
+                    .header("Authorization", format!("Bearer {community_token}"));
+                let response = self.govee_headers(request).send().await?;
 
                 if response.status() == reqwest::StatusCode::UNAUTHORIZED {
                     self.invalidate_community_login();
@@ -929,6 +931,17 @@ pub fn embedded_json<'de, T: DeserializeOwned, D: serde::de::Deserializer<'de>>(
 mod test {
     use super::*;
     use crate::platform_api::from_json;
+
+    #[test]
+    fn client_construction_succeeds() {
+        GoveeUndocumentedApi::new("test@example.com", "password").unwrap();
+    }
+
+    #[test]
+    fn shared_http_client_initializes() {
+        // Verify the module-level SHARED_HTTP lazy static can be dereferenced
+        let _client: &reqwest::Client = &SHARED_HTTP;
+    }
 
     #[test]
     fn get_device_scenes() {

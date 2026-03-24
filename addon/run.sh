@@ -66,6 +66,7 @@ export_config scan              GOVEE_LAN_SCAN
 export_config temperature_scale GOVEE_TEMPERATURE_SCALE
 export_config disable_effects   GOVEE_DISABLE_EFFECTS
 export_config allowed_effects   GOVEE_ALLOWED_EFFECTS
+export_config poll_interval     GOVEE_POLL_INTERVAL
 
 env | grep GOVEE_ | sed -r 's/_(EMAIL|KEY|PASSWORD)=.*/_\1=REDACTED/'
 set -x

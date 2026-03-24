@@ -39,15 +39,7 @@ impl Extension for AvailabilityExtension {
                 continue;
             }
 
-            let stale_threshold = device.preferred_poll_interval() * 3;
-
-            let is_online = device
-                .last_polled
-                .or(device.last_lan_device_status_update)
-                .or(device.last_iot_device_status_update)
-                .or(device.last_http_device_state_update)
-                .map(|last_seen| now - last_seen < stale_threshold)
-                .unwrap_or(false);
+            let is_online = device.is_online(now);
 
             let entry = last_avail.entry(device.id.clone()).or_insert((false, 0));
             let (was_online, offline_count) = entry;

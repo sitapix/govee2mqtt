@@ -1,3 +1,4 @@
+use anyhow::Context;
 use crate::cache::{cache_get, CacheComputeResult, CacheGetOptions};
 use crate::platform_api::{http_response_body, ONE_WEEK};
 use reqwest::Method;
@@ -17,12 +18,20 @@ fn endpoint(url: &str) -> String {
 #[derive(Clone)]
 pub struct RestApiClient {
     key: String,
+    http: reqwest::Client,
 }
 
 #[allow(unused)]
 impl RestApiClient {
-    pub fn new<K: Into<String>>(key: K) -> Self {
-        Self { key: key.into() }
+    pub fn new<K: Into<String>>(key: K) -> anyhow::Result<Self> {
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(60))
+            .build()
+            .context("failed to build HTTP client")?;
+        Ok(Self {
+            key: key.into(),
+            http,
+        })
     }
 
     pub async fn list_devices(&self) -> anyhow::Result<Vec<RestDeviceInfo>> {
@@ -142,9 +151,8 @@ impl RestApiClient {
         &self,
         url: T,
     ) -> anyhow::Result<R> {
-        let response = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
-            .build()?
+        let response = self
+            .http
             .request(Method::GET, url)
             .header("Govee-API-Key", &self.key)
             .send()
@@ -163,9 +171,8 @@ impl RestApiClient {
         url: T,
         body: &B,
     ) -> anyhow::Result<R> {
-        let response = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
-            .build()?
+        let response = self
+            .http
             .request(method, url)
             .header("Govee-API-Key", &self.key)
             .json(body)
@@ -246,6 +253,11 @@ pub enum SupportedCommand {
 mod test {
     use super::*;
     use crate::platform_api::from_json;
+
+    #[test]
+    fn client_construction_succeeds() {
+        RestApiClient::new("test-key").unwrap();
+    }
 
     #[test]
     fn list_devices() {

@@ -33,14 +33,7 @@ pub async fn publish_bridge_health(state: &StateHandle) {
     let mut iot_count = 0u32;
 
     for device in &devices {
-        let stale_threshold = device.preferred_poll_interval() * 3;
-        let is_online = device
-            .last_polled
-            .or(device.last_lan_device_status_update)
-            .or(device.last_iot_device_status_update)
-            .or(device.last_http_device_state_update)
-            .map(|last_seen| now - last_seen < stale_threshold)
-            .unwrap_or(false);
+        let is_online = device.is_online(now);
 
         if is_online {
             online_count += 1;
@@ -96,14 +89,7 @@ pub async fn publish_bridge_devices(state: &StateHandle) {
     let device_list: Vec<serde_json::Value> = devices
         .iter()
         .map(|d| {
-            let stale_threshold = d.preferred_poll_interval() * 3;
-            let is_online = d
-                .last_polled
-                .or(d.last_lan_device_status_update)
-                .or(d.last_iot_device_status_update)
-                .or(d.last_http_device_state_update)
-                .map(|last| now - last < stale_threshold)
-                .unwrap_or(false);
+            let is_online = d.is_online(now);
 
             serde_json::json!({
                 "id": d.id,

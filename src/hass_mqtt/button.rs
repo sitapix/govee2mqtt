@@ -31,7 +31,6 @@ impl ButtonConfig {
             id = topic_safe_id(device),
             inst = instance.instance
         );
-        let (availability, availability_mode) = device_availability_entries(device);
         let unique_id = format!(
             "gv2mqtt-{id}-{inst}",
             id = topic_safe_id(device),
@@ -39,18 +38,11 @@ impl ButtonConfig {
         );
 
         Ok(Self {
-            base: EntityConfig {
-                availability_topic: String::new(),
-                availability,
-                availability_mode,
-                name: Some(camel_case_to_space_separated(&instance.instance)),
-                device_class: None,
-                origin: Origin::default(),
-                device: Device::for_device(device),
+            base: EntityConfig::for_device(
+                device,
+                Some(camel_case_to_space_separated(&instance.instance)),
                 unique_id,
-                entity_category: None,
-                icon: None,
-            },
+            ),
             command_topic,
             payload_press: None,
         })
@@ -94,20 +86,8 @@ impl ButtonConfig {
             id = topic_safe_id(device),
             mode = topic_safe_string(mode_name),
         );
-        let (availability, availability_mode) = device_availability_entries(device);
         Self {
-            base: EntityConfig {
-                availability_topic: String::new(),
-                availability,
-                availability_mode,
-                name: Some(name.to_string()),
-                entity_category: None,
-                origin: Origin::default(),
-                device: Device::for_device(device),
-                unique_id: unique_id.clone(),
-                device_class: None,
-                icon: None,
-            },
+            base: EntityConfig::for_device(device, Some(name.to_string()), unique_id.clone()),
             command_topic,
             payload_press: Some(value.to_string()),
         }
@@ -151,5 +131,47 @@ impl EntityInstance for ButtonConfig {
     async fn notify_state(&self, _client: &HassClient) -> anyhow::Result<()> {
         // Buttons have no state
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ButtonConfig;
+    use crate::hass_mqtt::instance::EntityInstance;
+    use crate::service::device::Device;
+
+    #[test]
+    fn global_button_has_expected_unique_id_and_topic() {
+        let button = ButtonConfig::new("Restart Bridge", "gv2mqtt/bridge/restart");
+        assert_eq!(button.base.name.as_deref(), Some("Restart Bridge"));
+        assert_eq!(button.command_topic, "gv2mqtt/bridge/restart");
+        assert_eq!(button.base.unique_id, "global-restart_bridge");
+        assert!(button.payload_press.is_none());
+    }
+
+    #[test]
+    fn activate_work_mode_preset_has_expected_fields() {
+        let device = Device::new("H7160", "AA:BB");
+        let button = ButtonConfig::activate_work_mode_preset(&device, "High", "humidity", 1, 8);
+        assert_eq!(button.base.name.as_deref(), Some("High"));
+        assert_eq!(button.command_topic, "gv2mqtt/number/AABB/command/humidity/1");
+        assert_eq!(button.payload_press.as_deref(), Some("8"));
+    }
+
+    #[test]
+    fn request_platform_data_button_has_diagnostic_category() {
+        let device = Device::new("H6000", "AA:BB");
+        let button = ButtonConfig::request_platform_data_for_device(&device);
+        assert_eq!(
+            button.base.name.as_deref(),
+            Some("Request Platform API State")
+        );
+        assert_eq!(
+            button.base.entity_category.as_deref(),
+            Some("diagnostic")
+        );
+        assert_eq!(button.command_topic, "gv2mqtt/AABB/request-platform-data");
+
+        let _entity_trait: &dyn EntityInstance = &button;
     }
 }

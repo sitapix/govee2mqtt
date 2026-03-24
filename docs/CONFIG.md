@@ -167,9 +167,10 @@ device quirks without code changes:
 
 ## Advanced
 
-|ENV|Purpose|
-|---|-------|
-|`RUST_LOG=govee=trace`|Set log verbosity|
-|`GOVEE_LOG_SENSITIVE_DATA=true`|Include API tokens in logs (debugging only)|
-|`GOVEE_CACHE_DIR=/path`|Override cache directory|
-|`GOVEE_TEMPERATURE_SCALE=F`|Use Fahrenheit (default: Celsius)|
+|ENV|AddOn|Purpose|
+|---|-----|-------|
+|`RUST_LOG=govee=trace`|`debug_level`|Set log verbosity|
+|`GOVEE_LOG_SENSITIVE_DATA=true`|N/A|Include API tokens in logs (debugging only)|
+|`GOVEE_CACHE_DIR=/path`|N/A|Override cache directory|
+|`GOVEE_TEMPERATURE_SCALE=F`|`temperature_scale`|Use Fahrenheit (default: Celsius)|
+|`GOVEE_POLL_INTERVAL=120`|`poll_interval`|Platform API polling interval in seconds (default: 120). Increase to 900 if you have many devices without IoT/LAN support to stay under the 10,000 req/day API limit.|

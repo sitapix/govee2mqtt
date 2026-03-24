@@ -43,6 +43,11 @@ pub struct Device {
 
     pub last_polled: Option<DateTime<Utc>>,
 
+    /// Set when the Platform API returns "devices not belong you".
+    /// Skips polling until cooldown expires, then retries in case
+    /// the device was re-added to the account. Resets on restart.
+    pub(crate) platform_not_belong_until: Option<DateTime<Utc>>,
+
     active_scene: Option<ActiveSceneInfo>,
     active_music_mode: Option<ActiveMusicModeInfo>,
 }
@@ -185,6 +190,18 @@ impl Device {
             }
             _ => *POLL_INTERVAL,
         }
+    }
+
+    /// Returns whether this device has been heard from recently enough
+    /// to consider it online. Used by availability, health, and HTTP endpoints.
+    pub fn is_online(&self, now: DateTime<Utc>) -> bool {
+        let stale_threshold = self.preferred_poll_interval() * 3;
+        self.last_polled
+            .or(self.last_lan_device_status_update)
+            .or(self.last_iot_device_status_update)
+            .or(self.last_http_device_state_update)
+            .map(|last_seen| now - last_seen < stale_threshold)
+            .unwrap_or(false)
     }
 
     pub fn ip_addr(&self) -> Option<IpAddr> {
@@ -656,8 +673,25 @@ impl Device {
     }
 
     pub fn iot_api_supported(&self) -> bool {
+        // Quirks are explicit overrides and take precedence over
+        // runtime auto-detection. A quirk with iot_api_supported=false
+        // will disable IoT even if state updates have been received.
         if let Some(quirk) = self.resolve_quirk() {
             return quirk.iot_api_supported;
+        }
+
+        // If we've received IoT state updates for this device,
+        // the IoT API is clearly working — use it for control too.
+        if self.last_iot_device_status_update.is_some() {
+            return true;
+        }
+
+        // The undocumented API reports whether the device has an IoT
+        // topic, indicating it supports IoT control.
+        if let Some(info) = &self.undoc_device_info {
+            if info.entry.device_ext.device_settings.topic.is_some() {
+                return true;
+            }
         }
 
         false
@@ -799,5 +833,82 @@ mod test {
 
         let device = Device::new("H6127", "ce");
         assert_eq!(device.name(), "H6127_CE");
+    }
+
+    #[test]
+    fn is_online_false_when_never_seen() {
+        let device = Device::new("H6000", "aa:bb");
+        assert!(!device.is_online(Utc::now()));
+    }
+
+    #[test]
+    fn is_online_true_when_recently_polled() {
+        let mut device = Device::new("H6000", "aa:bb");
+        device.last_polled = Some(Utc::now());
+        assert!(device.is_online(Utc::now()));
+    }
+
+    #[test]
+    fn is_online_true_from_lan_update() {
+        let mut device = Device::new("H6000", "aa:bb");
+        device.last_lan_device_status_update = Some(Utc::now());
+        assert!(device.is_online(Utc::now()));
+    }
+
+    #[test]
+    fn is_online_true_from_iot_update() {
+        let mut device = Device::new("H6000", "aa:bb");
+        device.last_iot_device_status_update = Some(Utc::now());
+        assert!(device.is_online(Utc::now()));
+    }
+
+    #[test]
+    fn is_online_true_from_http_update() {
+        let mut device = Device::new("H6000", "aa:bb");
+        device.last_http_device_state_update = Some(Utc::now());
+        assert!(device.is_online(Utc::now()));
+    }
+
+    #[test]
+    fn is_online_false_when_stale() {
+        let mut device = Device::new("H6000", "aa:bb");
+        // Last seen 10 minutes ago; default interval is 120s, stale threshold = 360s
+        device.last_polled = Some(Utc::now() - chrono::Duration::seconds(600));
+        assert!(!device.is_online(Utc::now()));
+    }
+
+    #[test]
+    fn iot_api_supported_false_by_default() {
+        let device = Device::new("H6000", "aa:bb");
+        assert!(!device.iot_api_supported());
+    }
+
+    #[test]
+    fn iot_api_supported_true_when_iot_status_received() {
+        let mut device = Device::new("H6000", "aa:bb");
+        device.last_iot_device_status_update = Some(Utc::now());
+        assert!(device.iot_api_supported());
+    }
+
+    #[test]
+    fn iot_api_supported_true_when_undoc_topic_present() {
+        let mut device = Device::new("H6072", "aa:bb");
+        let resp: crate::undoc_api::DevicesResponse =
+            crate::platform_api::from_json(include_str!("../../test-data/undoc-device-list.json"))
+                .unwrap();
+        // First device in the test data has topic: "GD/"
+        let entry = resp.devices.into_iter().next().unwrap();
+        assert!(entry.device_ext.device_settings.topic.is_some());
+        device.undoc_device_info = Some(UndocDeviceInfo {
+            room_name: None,
+            entry,
+        });
+        assert!(device.iot_api_supported());
+    }
+
+    #[test]
+    fn platform_not_belong_until_defaults_to_none() {
+        let device = Device::new("H6000", "aa:bb");
+        assert!(device.platform_not_belong_until.is_none());
     }
 }
