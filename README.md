@@ -57,7 +57,7 @@ The bridge automatically picks the best available channel for each device and co
 
 ## Usage
 
-* [Installing the HASS Add-On](docs/ADDON.md) - for HAOS and Supervised HASS users
+* [Installing the HASS App](docs/ADDON.md) - for HAOS and Supervised HASS users
 * [Running it in Docker](docs/DOCKER.md)
 * [Configuration](docs/CONFIG.md)
 
@@ -76,7 +76,7 @@ Web UI: `http://localhost:8056` | MQTT: `localhost:1883` | Health: `http://local
 ### Testing
 
 ```bash
-make test                              # unit tests (106 tests)
+make test                              # unit tests (131 tests)
 cargo test --test lan_simulator        # LAN protocol simulator (4 tests)
 cargo test --test mqtt_integration -- --test-threads=1  # MQTT integration (3 tests, needs Docker)
 ```
@@ -129,6 +129,9 @@ Publish to these topics to control the bridge via MQTT:
 | `/api/device/{id}/scene/{name}` | POST | Activate scene |
 | `/api/device/{id}/scenes` | GET | List available scenes |
 | `/api/device/{id}/ptreal` | POST | Send raw ptReal commands |
+| `/api/config` | GET/PUT | Read or update device config |
+| `/api/oneclicks` | GET | List one-click scenes |
+| `/api/oneclick/activate/{scene}` | POST | Activate a one-click scene |
 | `/api/logs` | GET | Recent log entries (JSON) |
 | `/api/ws/logs` | WebSocket | Live log streaming |
 

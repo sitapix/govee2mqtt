@@ -28,27 +28,27 @@ configuration:
     name: MQTT Broker Host Name
     description: >-
       The host name or IP address of the MQTT Broker on your network.
-      If you are using the Mosquitto Addon, you can leave this blank
+      If you are using the Mosquitto app, you can leave this blank
       as it will be handled automatically by Home Assistant.
   mqtt_port:
     name: MQTT Broker Port Number
     description: >-
       The port number of the MQTT Broker on your network.
-      If you are using the Mosquitto Addon, you can leave this blank
+      If you are using the Mosquitto app, you can leave this blank
       as it will be handled automatically by Home Assistant.
   mqtt_username:
     name: MQTT Broker Username
     description: >-
       If your MQTT broker requires authentication, the username that
       should be used.
-      If you are using the Mosquitto Addon, you can leave this blank
+      If you are using the Mosquitto app, you can leave this blank
       as it will be handled automatically by Home Assistant.
   mqtt_password:
     name: MQTT Broker Password
     description: >-
       If your MQTT broker requires authentication, the password that
       should be used.
-      If you are using the Mosquitto Addon, you can leave this blank
+      If you are using the Mosquitto app, you can leave this blank
       as it will be handled automatically by Home Assistant.
   debug_level:
     name: Debug Filter

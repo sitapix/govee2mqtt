@@ -46,11 +46,11 @@ to configure these options.
   specialization and having that working doesn't imply that multicast-UDP in
   general will work.
 
-* Consider enabling the `broadcast_all` option for the addon, which uses
+* Consider enabling the `broadcast_all` option for the app, which uses
   explicit UDP broadcasts to each network interface, rather than multicast.
 
 * Assign a static IP to the device in your DHCP setup, then add that IP to the
-  [scan list](CONFIG.md#lan-api-control) in the addon config, which will use
+  [scan list](CONFIG.md#lan-api-control) in the app config, which will use
   unicast UDP packets to each device.  This is heavier on your network, but
   more compatible with certain VLAN setups.
 

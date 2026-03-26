@@ -89,7 +89,7 @@ The bridge logs a warning when rate limit remaining drops below 1,000.
 ## Google Home shows my lights as offline
 
 This is caused by the effect list exceeding Google's SYNC payload size limit.
-Set `disable_effects: true` in the addon config, or use `allowed_effects`
+Set `disable_effects: true` in the app config, or use `allowed_effects`
 to whitelist only the effects you need. See [Configuration](CONFIG.md).
 
 ## My Device(s) appear as Greyed Out and Unavailable in Home Assistant

@@ -1,11 +1,11 @@
 # Govee to MQTT Bridge
 
-This Home Assistant add-on runs `govee2mqtt` inside Home Assistant OS or Supervised Home Assistant and exposes Govee devices to Home Assistant through MQTT discovery.
+This Home Assistant app runs `govee2mqtt` inside Home Assistant OS or Supervised Home Assistant and exposes Govee devices to Home Assistant through MQTT discovery.
 
 ## What it needs
 
 - A working Home Assistant MQTT integration.
-- Usually the Mosquitto Broker add-on, or another reachable MQTT broker.
+- Usually the Mosquitto Broker app, or another reachable MQTT broker.
 - Optional Govee credentials if you want cloud, Platform API, or undocumented IoT features.
 
 ## Configuration
@@ -15,17 +15,17 @@ Common options:
 - `temperature_scale`: `C` or `F`
 - `govee_email` / `govee_password`: Enables Govee account login features (IoT, one-click scenes, room names)
 - `govee_api_key`: Enables official Govee Platform API features (scenes, device metadata, real-time push updates)
-- `mqtt_host` / `mqtt_port` / `mqtt_username` / `mqtt_password`: Override broker auto-discovery if you are not using the Mosquitto add-on
+- `mqtt_host` / `mqtt_port` / `mqtt_username` / `mqtt_password`: Override broker auto-discovery if you are not using the Mosquitto app
 - `debug_level`: Rust log filter such as `govee=trace`
 - `no_multicast`, `broadcast_all`, `global_broadcast`, `scan`: LAN discovery tuning
 - `disable_effects`: Disable effects in MQTT discovery (fixes Google Home offline issue)
 - `allowed_effects`: Comma-separated whitelist of effect names to include
 
-If `mqtt_host` is left empty, the add-on waits for the Home Assistant MQTT service and uses the broker details provided by Supervisor.
+If `mqtt_host` is left empty, the app waits for the Home Assistant MQTT service and uses the broker details provided by Supervisor.
 
 ## Web UI
 
-The add-on web UI is exposed through Home Assistant Ingress. Open it from the add-on page with **Open Web UI**.
+The app web UI is exposed through Home Assistant Ingress. Open it from the app page with **Open Web UI**.
 
 The Web UI has three tabs:
 
@@ -35,7 +35,7 @@ The Web UI has three tabs:
 
 ## Per-Device Configuration
 
-Create a JSON file at `/data/govee-device-config.json` (inside the addon container) to override per-device settings. The file is **hot-reloaded** — changes take effect automatically without restarting the addon.
+Create a JSON file at `/data/govee-device-config.json` (inside the app container) to override per-device settings. The file is **hot-reloaded** — changes take effect automatically without restarting the app.
 
 Example:
 
@@ -112,11 +112,11 @@ Subscribe to `gv2mqtt/bridge/error` for error details. Common causes: rate limit
 
 ### Google Home shows devices offline
 
-Set `disable_effects: true` in the addon config. See the [configuration docs](https://github.com/sitapix/govee2mqtt/blob/main/docs/CONFIG.md#effect-list-filtering) for details.
+Set `disable_effects: true` in the app config. See the [configuration docs](https://github.com/sitapix/govee2mqtt/blob/main/docs/CONFIG.md#effect-list-filtering) for details.
 
 ### "Cannot bind to UDP Port 4002"
 
-Another integration (Matter Server) is using port 4002. If running as a Docker container, set the `GOVEE_LAN_LISTEN_PORT` environment variable to a different port. This option is not available in the Home Assistant addon — you will need to stop the conflicting addon first.
+Another integration (Matter Server) is using port 4002. If running as a Docker container, set the `GOVEE_LAN_LISTEN_PORT` environment variable to a different port. This option is not available in the Home Assistant app — you will need to stop the conflicting app first.
 
 ### Rate limited
 

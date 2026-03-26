@@ -17,7 +17,7 @@ here](https://developer.govee.com/reference/apply-you-govee-api-key).
 The API key also enables the official Govee MQTT push API for real-time status
 updates without polling.
 
-|CLI|ENV|AddOn|Purpose|
+|CLI|ENV|App|Purpose|
 |---|---|-----|-------|
 |`--govee-email`|`GOVEE_EMAIL`|`govee_email`|The email address you registered with your govee account|
 |`--govee-password`|`GOVEE_PASSWORD`|`govee_password`|The password you registered for your govee account|
@@ -45,7 +45,7 @@ In theory the LAN API is zero-configuration and auto-discovery, but this
 relies on your network supporting multicast-UDP, which is challenging
 on some networks, especially across wifi access points and routers.
 
-|CLI|ENV|AddOn|Purpose|
+|CLI|ENV|App|Purpose|
 |---|---|-----|-------|
 |`--no-multicast`|`GOVEE_LAN_NO_MULTICAST=true`|`no_multicast`|Do not multicast discovery packets to the Govee multicast group `239.255.255.250`. It is not recommended to use this option.|
 |`--broadcast-all`|`GOVEE_LAN_BROADCAST_ALL=true`|`broadcast_all`|Enumerate all non-loopback network interfaces and send discovery packets to the broadcast address of each one, individually. This may be a good option if multicast-UDP doesn't work well on your network|
@@ -63,7 +63,7 @@ In order to make your devices appear in Home Assistant, you will need to have co
 
 You will also need to configure `govee2mqtt` to use the same broker:
 
-|CLI|ENV|AddOn|Purpose|
+|CLI|ENV|App|Purpose|
 |---|---|-----|-------|
 |`--mqtt-host`|`GOVEE_MQTT_HOST`|`mqtt_host`|The host name or IP address of your mqtt broker. This should be the same broker that you have configured in Home Assistant.|
 |`--mqtt-port`|`GOVEE_MQTT_PORT`|`mqtt_port`|The port number of the mqtt broker. The default is `1883`|
@@ -76,7 +76,7 @@ If Google Home shows your Govee lights as offline, it's likely because the effec
 list exceeds Google's SYNC payload size limit. Use these options to reduce or
 disable the published effect list:
 
-|ENV|AddOn|Purpose|
+|ENV|App|Purpose|
 |---|-----|-------|
 |`GOVEE_DISABLE_EFFECTS=true`|`disable_effects`|Disable all effects in MQTT discovery. Scene control via automations still works.|
 |`GOVEE_ALLOWED_EFFECTS=Forest,Aurora`|`allowed_effects`|Comma-separated whitelist of effects to include (case-insensitive).|
@@ -88,12 +88,12 @@ Per-device effect disabling is also available via the [device config file](#per-
 |ENV|Purpose|
 |---|-------|
 |`GOVEE_HTTP_AUTH_TOKEN`|When set, require this token as a Bearer header or `?token=` query param for all API requests. `/api/health` is always accessible without auth.|
-|`GOVEE_HTTP_INGRESS_ONLY=true`|Restrict API access to the HA ingress proxy IP only (addon use).|
+|`GOVEE_HTTP_INGRESS_ONLY=true`|Restrict API access to the HA ingress proxy IP only (app use).|
 
 ## Per-Device Configuration
 
 Create a JSON file at `govee-device-config.json` in the cache directory (controlled by
-`XDG_CACHE_HOME`, or `/data` in the addon) to override per-device settings.
+`XDG_CACHE_HOME`, or `/data` in the app) to override per-device settings.
 
 The file is **hot-reloaded** — changes are picked up automatically without restart.
 
@@ -167,7 +167,7 @@ device quirks without code changes:
 
 ## Advanced
 
-|ENV|AddOn|Purpose|
+|ENV|App|Purpose|
 |---|-----|-------|
 |`RUST_LOG=govee=trace`|`debug_level`|Set log verbosity|
 |`GOVEE_LOG_SENSITIVE_DATA=true`|N/A|Include API tokens in logs (debugging only)|

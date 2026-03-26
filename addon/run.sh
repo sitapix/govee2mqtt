@@ -20,7 +20,7 @@ wait_for_mqtt() {
   local max_attempts=30
   local attempt=1
 
-  bashio::log.info "mqtt_host was not explicitly configured, waiting for the Mosquitto broker Add-on to become available"
+  bashio::log.info "mqtt_host was not explicitly configured, waiting for the Mosquitto broker app to become available"
 
   while [ $attempt -le $max_attempts ]; do
     if bashio::services.available mqtt ; then
