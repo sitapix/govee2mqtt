@@ -261,7 +261,18 @@ impl LanDevice {
     ) -> anyhow::Result<()> {
         let mask: u16 = 1u16.checked_shl(segment).unwrap_or(0);
         let bytes = Base64HexBytes::with_bytes(vec![
-            0x33, 0x05, 0x15, 0x01, r, g, b, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x33,
+            0x05,
+            0x15,
+            0x01,
+            r,
+            g,
+            b,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
             (mask & 0xff) as u8,
             (mask >> 8) as u8,
         ]);

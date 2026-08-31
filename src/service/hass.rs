@@ -25,8 +25,7 @@ use std::fs;
 use std::path::PathBuf;
 #[cfg(test)]
 use std::sync::Arc as StdArc;
-use std::sync::Arc;
-use std::sync::Mutex as StdMutex;
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
 const HASS_REGISTER_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(15);
@@ -483,7 +482,10 @@ pub fn device_availability_topic(device: &ServiceDevice) -> String {
 /// Entity is available only when both the bridge AND the device are online.
 pub fn device_availability_entries(
     device: &ServiceDevice,
-) -> (Vec<crate::hass_mqtt::base::AvailabilityEntry>, Option<String>) {
+) -> (
+    Vec<crate::hass_mqtt::base::AvailabilityEntry>,
+    Option<String>,
+) {
     use crate::hass_mqtt::base::AvailabilityEntry;
     (
         vec![
@@ -792,9 +794,7 @@ async fn mqtt_light_segment_command(
         log::info!("Using LAN API to control {device} segment {segment}");
         if command.state == "OFF" {
             // Turn off segment by setting it to black via LAN ptReal
-            lan_dev
-                .send_segment_color_rgb(segment, 0, 0, 0)
-                .await?;
+            lan_dev.send_segment_color_rgb(segment, 0, 0, 0).await?;
         }
         if let Some(color) = &command.color {
             lan_dev
@@ -831,10 +831,7 @@ async fn mqtt_bridge_request_restart(State(_state): State<StateHandle>) -> anyho
     // Publish response before exiting
     if let Some(hass) = _state.get_hass_client().await {
         let _ = hass
-            .publish_retained(
-                "gv2mqtt/bridge/response/restart",
-                r#"{"status":"ok"}"#,
-            )
+            .publish_retained("gv2mqtt/bridge/response/restart", r#"{"status":"ok"}"#)
             .await;
     }
     // Give MQTT time to publish the response
@@ -848,9 +845,7 @@ async fn mqtt_bridge_request_devices(State(state): State<StateHandle>) -> anyhow
     Ok(())
 }
 
-async fn mqtt_bridge_request_config_reload(
-    State(state): State<StateHandle>,
-) -> anyhow::Result<()> {
+async fn mqtt_bridge_request_config_reload(State(state): State<StateHandle>) -> anyhow::Result<()> {
     log::info!("mqtt bridge request: config_reload");
     crate::service::device_config::load_device_config();
     if let Some(hass) = state.get_hass_client().await {
@@ -871,11 +866,7 @@ async fn mqtt_bridge_request_log_level(
 ) -> anyhow::Result<()> {
     log::info!("mqtt bridge request: log_level -> {level}");
     // Update the log filter at runtime
-    log::set_max_level(
-        level
-            .parse()
-            .unwrap_or(log::LevelFilter::Info),
-    );
+    log::set_max_level(level.parse().unwrap_or(log::LevelFilter::Info));
     if let Some(hass) = state.get_hass_client().await {
         let _ = hass
             .publish_retained(
@@ -887,17 +878,12 @@ async fn mqtt_bridge_request_log_level(
     Ok(())
 }
 
-async fn mqtt_bridge_request_cache_purge(
-    State(state): State<StateHandle>,
-) -> anyhow::Result<()> {
+async fn mqtt_bridge_request_cache_purge(State(state): State<StateHandle>) -> anyhow::Result<()> {
     log::info!("mqtt bridge request: cache_purge");
     crate::cache::purge_cache()?;
     if let Some(hass) = state.get_hass_client().await {
         let _ = hass
-            .publish_retained(
-                "gv2mqtt/bridge/response/cache_purge",
-                r#"{"status":"ok"}"#,
-            )
+            .publish_retained("gv2mqtt/bridge/response/cache_purge", r#"{"status":"ok"}"#)
             .await;
     }
     state
@@ -922,9 +908,7 @@ async fn mqtt_oneclick(
                        Configure govee_email and govee_password to enable one-click scenes.";
             log::error!("{msg}");
             if let Some(hass) = state.get_hass_client().await {
-                let _ = hass
-                    .publish("gv2mqtt/bridge/error", msg)
-                    .await;
+                let _ = hass.publish("gv2mqtt/bridge/error", msg).await;
             }
             anyhow::bail!("{msg}");
         }
@@ -1090,10 +1074,7 @@ async fn run_mqtt_loop(
         router.route(oneclick_topic(), mqtt_oneclick).await?;
         router.route(purge_cache_topic(), mqtt_purge_caches).await?;
         router
-            .route(
-                "gv2mqtt/bridge/request/health",
-                mqtt_bridge_request_health,
-            )
+            .route("gv2mqtt/bridge/request/health", mqtt_bridge_request_health)
             .await?;
         router
             .route(

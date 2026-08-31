@@ -72,10 +72,13 @@ mod tests {
     #[test]
     fn push_log_adds_to_recent_logs() {
         // Push a unique entry we can identify
-        let unique_msg = format!("test-push-{}", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos());
+        let unique_msg = format!(
+            "test-push-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
         push_log("INFO", "test_target", &unique_msg);
 
         let logs = recent_logs();
@@ -87,10 +90,13 @@ mod tests {
 
     #[test]
     fn recent_logs_returns_pushed_entries() {
-        let unique = format!("recent-test-{}", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos());
+        let unique = format!(
+            "recent-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
         push_log("WARN", "my_target", &unique);
 
         let logs = recent_logs();
@@ -116,10 +122,13 @@ mod tests {
     #[tokio::test]
     async fn subscribe_receives_new_entries() {
         let mut rx = subscribe();
-        let unique = format!("subscribe-test-{}", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos());
+        let unique = format!(
+            "subscribe-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
         push_log("ERROR", "sub_target", &unique);
 
         // Drain messages until we find our unique one (other tests may

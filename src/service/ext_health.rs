@@ -137,8 +137,7 @@ mod tests {
         assert_eq!(published[0].0, "gv2mqtt/bridge/health");
 
         // Verify the payload is valid JSON
-        let payload: serde_json::Value =
-            serde_json::from_str(&published[0].1).unwrap();
+        let payload: serde_json::Value = serde_json::from_str(&published[0].1).unwrap();
         assert_eq!(payload["devices"]["total"], 0);
         assert_eq!(payload["devices"]["online"], 0);
         assert_eq!(payload["devices"]["offline"], 0);
@@ -178,8 +177,7 @@ mod tests {
         assert_eq!(published.len(), 1);
         assert_eq!(published[0].0, "gv2mqtt/bridge/devices");
 
-        let devices: Vec<serde_json::Value> =
-            serde_json::from_str(&published[0].1).unwrap();
+        let devices: Vec<serde_json::Value> = serde_json::from_str(&published[0].1).unwrap();
         assert_eq!(devices.len(), 2);
 
         // Check that device IDs are present (order may vary)

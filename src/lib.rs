@@ -61,8 +61,7 @@ where
 {
     use anyhow::Context;
 
-    let log_sensitive_data =
-        !name.contains("PASSWORD") || undoc_api::should_log_sensitive_data();
+    let log_sensitive_data = !name.contains("PASSWORD") || undoc_api::should_log_sensitive_data();
 
     match std::env::var(name) {
         Ok(p) => Ok(Some(p.parse().map_err(|err| {

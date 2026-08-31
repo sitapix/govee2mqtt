@@ -38,7 +38,9 @@ fn setup_logger() {
             // Write to rotating log file
             let file_line = format!(
                 "[{}{utc_suffix} {:<5} {}] {}",
-                chrono::Utc::now().with_timezone(&tz).format("%Y-%m-%dT%H:%M:%S"),
+                chrono::Utc::now()
+                    .with_timezone(&tz)
+                    .format("%Y-%m-%dT%H:%M:%S"),
                 record.level(),
                 target,
                 message

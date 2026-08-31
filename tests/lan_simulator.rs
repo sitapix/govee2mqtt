@@ -114,18 +114,16 @@ impl SimulatedDevice {
                         .await;
                 } else if text.contains("\"turn\"") {
                     if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
-                        if let Some(val) = parsed
-                            .pointer("/msg/data/value")
-                            .and_then(|v| v.as_u64())
+                        if let Some(val) =
+                            parsed.pointer("/msg/data/value").and_then(|v| v.as_u64())
                         {
                             state_for_cmd.lock().unwrap().on = val != 0;
                         }
                     }
                 } else if text.contains("\"brightness\"") {
                     if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
-                        if let Some(val) = parsed
-                            .pointer("/msg/data/value")
-                            .and_then(|v| v.as_u64())
+                        if let Some(val) =
+                            parsed.pointer("/msg/data/value").and_then(|v| v.as_u64())
                         {
                             state_for_cmd.lock().unwrap().brightness = val as u8;
                         }
@@ -195,15 +193,11 @@ async fn simulated_device_responds_to_scan() {
     .unwrap()
     .unwrap();
 
-    let response: serde_json::Value =
-        serde_json::from_slice(&buf[..len]).unwrap();
+    let response: serde_json::Value = serde_json::from_slice(&buf[..len]).unwrap();
 
     assert_eq!(response["msg"]["cmd"], "scan");
     assert_eq!(response["msg"]["data"]["sku"], "H6076");
-    assert_eq!(
-        response["msg"]["data"]["device"],
-        "AA:BB:CC:DD:EE:FF:00:11"
-    );
+    assert_eq!(response["msg"]["data"]["device"], "AA:BB:CC:DD:EE:FF:00:11");
 }
 
 #[tokio::test]
@@ -237,8 +231,7 @@ async fn simulated_device_responds_to_status_query() {
     .unwrap()
     .unwrap();
 
-    let response: serde_json::Value =
-        serde_json::from_slice(&buf[..len]).unwrap();
+    let response: serde_json::Value = serde_json::from_slice(&buf[..len]).unwrap();
 
     assert_eq!(response["msg"]["cmd"], "devStatus");
     assert_eq!(response["msg"]["data"]["onOff"], 1);

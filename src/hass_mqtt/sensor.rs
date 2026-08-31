@@ -435,7 +435,12 @@ impl DeviceSettingDiagnostic {
         state: &StateHandle,
         field: DeviceSettingField,
     ) -> Option<Self> {
-        let settings = &device.undoc_device_info.as_ref()?.entry.device_ext.device_settings;
+        let settings = &device
+            .undoc_device_info
+            .as_ref()?
+            .entry
+            .device_ext
+            .device_settings;
         match field {
             DeviceSettingField::Battery => settings.battery?,
             DeviceSettingField::WifiLevel => settings.wifi_level?,

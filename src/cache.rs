@@ -10,26 +10,23 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-pub static CACHE: Lazy<ArcSwap<Cache>> = Lazy::new(|| {
-    match open_cache() {
-        Ok(cache) => cache.into(),
-        Err(err) => {
-            log::error!("Failed to initialize cache: {err:#}. Using in-memory fallback.");
-            let conn = sqlite_cache::rusqlite::Connection::open_in_memory()
-                .expect("in-memory SQLite");
-            Arc::new(
-                Cache::new(
-                    CacheConfig {
-                        flush_gc_ratio: 1024,
-                        flush_interval: Duration::from_secs(900),
-                        max_ttl: None,
-                    },
-                    conn,
-                )
-                .expect("in-memory cache"),
+pub static CACHE: Lazy<ArcSwap<Cache>> = Lazy::new(|| match open_cache() {
+    Ok(cache) => cache.into(),
+    Err(err) => {
+        log::error!("Failed to initialize cache: {err:#}. Using in-memory fallback.");
+        let conn = sqlite_cache::rusqlite::Connection::open_in_memory().expect("in-memory SQLite");
+        Arc::new(
+            Cache::new(
+                CacheConfig {
+                    flush_gc_ratio: 1024,
+                    flush_interval: Duration::from_secs(900),
+                    max_ttl: None,
+                },
+                conn,
             )
-            .into()
-        }
+            .expect("in-memory cache"),
+        )
+        .into()
     }
 });
 

@@ -3,8 +3,7 @@ use crate::hass_mqtt::instance::{lookup_entity_device, publish_entity_config, En
 use crate::platform_api::DeviceType;
 use crate::service::device::Device as ServiceDevice;
 use crate::service::hass::{
-    kelvin_to_mired, light_segment_state_topic, light_state_topic,
-    topic_safe_id, HassClient,
+    kelvin_to_mired, light_segment_state_topic, light_state_topic, topic_safe_id, HassClient,
 };
 use crate::service::state::StateHandle;
 use async_trait::async_trait;
@@ -153,7 +152,12 @@ impl EntityInstance for DeviceLight {
 fn effects_disabled() -> bool {
     std::env::var("GOVEE_DISABLE_EFFECTS")
         .ok()
-        .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .map(|v| {
+            matches!(
+                v.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
         .unwrap_or(false)
 }
 
@@ -164,18 +168,16 @@ fn effects_disabled() -> bool {
 /// and non-empty, only names in the allowlist survive. Empty strings are
 /// preserved (they're used as separators in some workflows).
 fn filter_effects(scenes: Vec<String>, device_allowed: Option<Vec<String>>) -> Vec<String> {
-    let allowed: Option<Vec<String>> = device_allowed
-        .filter(|v| !v.is_empty())
-        .or_else(|| {
-            std::env::var("GOVEE_ALLOWED_EFFECTS").ok().and_then(|raw| {
-                let list: Vec<String> = raw
-                    .split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect();
-                (!list.is_empty()).then_some(list)
-            })
-        });
+    let allowed: Option<Vec<String>> = device_allowed.filter(|v| !v.is_empty()).or_else(|| {
+        std::env::var("GOVEE_ALLOWED_EFFECTS").ok().and_then(|raw| {
+            let list: Vec<String> = raw
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            (!list.is_empty()).then_some(list)
+        })
+    });
 
     let Some(allowed) = allowed else {
         return scenes;
@@ -216,11 +218,9 @@ impl DeviceLight {
             Some(_) => None,
             None => {
                 // User config override > quirk > none
-                let config_icon = crate::service::device_config::get_device_override(
-                    &device.id,
-                    &device.sku,
-                )
-                .and_then(|ovr| ovr.icon);
+                let config_icon =
+                    crate::service::device_config::get_device_override(&device.id, &device.sku)
+                        .and_then(|ovr| ovr.icon);
 
                 config_icon.or_else(|| {
                     if device_type == DeviceType::Light {
@@ -532,11 +532,7 @@ mod tests {
             super::filter_effects(scenes, Some(vec!["sunrise".to_string(), "sunset".into()]));
         assert_eq!(
             filtered,
-            vec![
-                "Sunrise".to_string(),
-                "".to_string(),
-                "SUNSET".to_string(),
-            ]
+            vec!["Sunrise".to_string(), "".to_string(), "SUNSET".to_string(),]
         );
     }
 }

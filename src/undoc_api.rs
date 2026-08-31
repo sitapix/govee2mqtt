@@ -1,5 +1,4 @@
 #![allow(unused)]
-use anyhow::Context;
 use crate::cache::{cache_get, CacheComputeResult, CacheGetOptions};
 use crate::lan_api::{boolean_int, truthy};
 use crate::opt_env_var;
@@ -7,12 +6,13 @@ use crate::platform_api::{
     from_json, http_response_body, DeviceCapability, DeviceCapabilityKind, DeviceParameters,
     EnumOption,
 };
+use anyhow::Context;
+use once_cell::sync::Lazy;
 use reqwest::Method;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use std::path::PathBuf;
-use once_cell::sync::Lazy;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -321,7 +321,10 @@ impl GoveeUndocumentedApi {
         // into the happy-path Response shape — Govee returns a normal HTTP 200
         // with status=454/455 in the JSON for 2FA events.
         let url = response.url().clone();
-        let bytes = response.bytes().await.with_context(|| format!("reading {url}"))?;
+        let bytes = response
+            .bytes()
+            .await
+            .with_context(|| format!("reading {url}"))?;
         let raw: serde_json::Value = serde_json::from_slice(&bytes)
             .with_context(|| format!("parsing {url} login response as JSON"))?;
         let status = raw.get("status").and_then(|v| v.as_u64()).unwrap_or(0);
@@ -361,8 +364,10 @@ impl GoveeUndocumentedApi {
         }
 
         let resp: ParsedResponse = serde_json::from_slice(&bytes).with_context(|| {
-            format!("parsing {url} login response (status={status}): {}",
-                String::from_utf8_lossy(&bytes))
+            format!(
+                "parsing {url} login response (status={status}): {}",
+                String::from_utf8_lossy(&bytes)
+            )
         })?;
 
         let ttl = Duration::from_secs(resp.client.token_expire_cycle as u64);

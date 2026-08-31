@@ -842,7 +842,11 @@ struct GetDevicesResponse {
 pub struct HttpDeviceInfo {
     pub sku: String,
     pub device: String,
-    #[serde(default, rename = "deviceName", deserialize_with = "deserialize_optional_localized_name")]
+    #[serde(
+        default,
+        rename = "deviceName",
+        deserialize_with = "deserialize_optional_localized_name"
+    )]
     pub device_name: String,
     #[serde(default, rename = "type")]
     pub device_type: DeviceType,
@@ -1174,7 +1178,9 @@ fn deserialize_optional_localized_name<'de, D: Deserializer<'de>>(
 }
 
 /// Deserialize a name that can be either a plain string or a localized map.
-fn deserialize_localized_name<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+fn deserialize_localized_name<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<String, D::Error> {
     let value: JsonValue = Deserialize::deserialize(deserializer)?;
     Ok(match &value {
         JsonValue::String(s) => s.clone(),
@@ -1285,13 +1291,9 @@ pub async fn http_response_body<R: serde::de::DeserializeOwned>(
             .unwrap_or("unknown");
         let remaining_num: i64 = remaining.parse().unwrap_or(-1);
         if remaining_num < 1000 {
-            log::warn!(
-                "Govee API rate limit: {remaining} requests remaining (resets at {reset})"
-            );
+            log::warn!("Govee API rate limit: {remaining} requests remaining (resets at {reset})");
         } else {
-            log::trace!(
-                "Govee API rate limit: {remaining} remaining (resets at {reset})"
-            );
+            log::trace!("Govee API rate limit: {remaining} remaining (resets at {reset})");
         }
     }
 

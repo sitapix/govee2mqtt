@@ -3,9 +3,7 @@ use crate::hass_mqtt::instance::{lookup_entity_device, publish_entity_config, En
 use crate::hass_mqtt::work_mode::ParsedWorkMode;
 use crate::platform_api::DeviceParameters;
 use crate::service::device::Device as ServiceDevice;
-use crate::service::hass::{
-    topic_safe_id, topic_safe_string, HassClient, IdParameter,
-};
+use crate::service::hass::{topic_safe_id, topic_safe_string, HassClient, IdParameter};
 use crate::service::state::StateHandle;
 use anyhow::Context;
 use mosquitto_rs::router::{Params, Payload, State};
@@ -357,9 +355,7 @@ pub async fn mqtt_set_mode_scene(
         let msg = format!("Scene '{scene}' failed for {device}: {err:#}");
         log::error!("{msg}");
         if let Some(hass) = state.get_hass_client().await {
-            let _ = hass
-                .publish("gv2mqtt/bridge/error", &msg)
-                .await;
+            let _ = hass.publish("gv2mqtt/bridge/error", &msg).await;
         }
         return Err(err).context("mqtt_set_mode_scene");
     }

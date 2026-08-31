@@ -239,9 +239,7 @@ impl IotClient {
 /// Returns the value borrowed when there is no string `transaction` field
 /// anywhere in the tree; otherwise returns an owned clone with those fields
 /// rewritten to fresh IDs.
-fn refresh_transaction(
-    value: &serde_json::Value,
-) -> std::borrow::Cow<'_, serde_json::Value> {
+fn refresh_transaction(value: &serde_json::Value) -> std::borrow::Cow<'_, serde_json::Value> {
     if !has_string_transaction(value) {
         return std::borrow::Cow::Borrowed(value);
     }

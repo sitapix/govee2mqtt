@@ -72,11 +72,7 @@ impl GroupLight {
 
 #[async_trait]
 impl EntityInstance for GroupLight {
-    async fn publish_config(
-        &self,
-        state: &StateHandle,
-        client: &HassClient,
-    ) -> anyhow::Result<()> {
+    async fn publish_config(&self, state: &StateHandle, client: &HassClient) -> anyhow::Result<()> {
         publish_entity_config("light", state, client, &self.config.base, &self.config).await
     }
 
@@ -115,10 +111,7 @@ impl EntityInstance for GroupLight {
             if let Some(c) = color {
                 if kelvin == 0 {
                     payload.insert("color_mode".to_string(), json!("rgb"));
-                    payload.insert(
-                        "color".to_string(),
-                        json!({"r": c.r, "g": c.g, "b": c.b}),
-                    );
+                    payload.insert("color".to_string(), json!({"r": c.r, "g": c.g, "b": c.b}));
                 } else {
                     payload.insert("color_mode".to_string(), json!("color_temp"));
                 }
@@ -126,7 +119,10 @@ impl EntityInstance for GroupLight {
         }
 
         client
-            .publish(&self.config.state_topic, &Value::Object(payload).to_string())
+            .publish(
+                &self.config.state_topic,
+                &Value::Object(payload).to_string(),
+            )
             .await
     }
 }

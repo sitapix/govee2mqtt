@@ -28,9 +28,7 @@ impl MosquittoContainer {
         let name = format!("govee-test-mqtt-{port}");
 
         // Remove any stale container with this name
-        let _ = Command::new("docker")
-            .args(["rm", "-f", &name])
-            .output();
+        let _ = Command::new("docker").args(["rm", "-f", &name]).output();
 
         let output = Command::new("docker")
             .args([
@@ -170,7 +168,9 @@ async fn mqtt_lifecycle_publishes_bridge_info_and_availability() {
         .expect("connect");
 
     state
-        .set_hass_client(govee::service::hass::HassClient::from_client(client.clone()))
+        .set_hass_client(govee::service::hass::HassClient::from_client(
+            client.clone(),
+        ))
         .await;
 
     // Manually trigger what register_with_hass does:
@@ -325,8 +325,7 @@ async fn mqtt_lwt_publishes_offline_on_disconnect() {
 
     // Connect govee client with LWT
     {
-        let client =
-            mosquitto_rs::Client::with_id("govee-lwt-test", true).expect("create client");
+        let client = mosquitto_rs::Client::with_id("govee-lwt-test", true).expect("create client");
         client
             .set_last_will(
                 govee::service::hass::availability_topic(),
