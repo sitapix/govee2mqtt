@@ -196,9 +196,18 @@ impl EnumCapabilitySelect {
         instance_name: &str,
         label: &str,
     ) -> anyhow::Result<Option<Self>> {
-        let options = state
+        let options = match state
             .device_list_capability_options(device, instance_name)
-            .await?;
+            .await
+        {
+            Ok(options) => options,
+            Err(err) => {
+                log::warn!(
+                    "Unable to list optional {label} options for {device} during Home Assistant discovery: {err:#}. Skipping this select; discovery will continue."
+                );
+                return Ok(None);
+            }
+        };
         if options.is_empty() {
             return Ok(None);
         }
