@@ -14,6 +14,6 @@ cosign:
   # The identity is *our* identity that we use to sign this image.
   # It is used to verify the safety of reusing the cache
   identity: https://github.com/sitapix/govee2mqtt/.*
-  # The base_identity is the identity of the base images specified
-  # by the build_from section above
-  base_identity: https://github.com/home-assistant/docker-base/.*
+  # Base-image verification is intentionally omitted: the deprecated app
+  # builder cannot discover signatures produced by docker-base's current
+  # publishing workflow. The official base images remain release-pinned.
