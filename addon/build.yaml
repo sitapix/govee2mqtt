@@ -4,11 +4,12 @@ labels:
   org.opencontainers.image.source: "https://github.com/sitapix/govee2mqtt"
   org.opencontainers.image.licenses: "MIT"
 
-# Pin the signed multi-architecture docker-base release. Home Assistant moved
-# away from architecture-prefixed base images in docker-base 2026.03.1.
+# Pin the signed per-architecture docker-base release. The legacy app builder
+# verifies each architecture independently and cannot use the multi-arch
+# manifest signature.
 build_from:
-  aarch64: "ghcr.io/home-assistant/base-debian:bookworm-2026.06.1"
-  amd64: "ghcr.io/home-assistant/base-debian:bookworm-2026.06.1"
+  aarch64: "ghcr.io/home-assistant/aarch64-base-debian:bookworm-2026.06.1"
+  amd64: "ghcr.io/home-assistant/amd64-base-debian:bookworm-2026.06.1"
 cosign:
   # The identity is *our* identity that we use to sign this image.
   # It is used to verify the safety of reusing the cache
