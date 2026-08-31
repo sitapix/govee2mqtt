@@ -255,6 +255,12 @@ pub async fn enumerate_entities_for_device(
                     entities.add(TargetTemperatureEntity::new(d, state, cap).await?);
                 }
 
+                // TV backlights (eg: H66A1) report a movie mode that we don't
+                // model yet. Ignore it rather than logging it as unhandled on
+                // every enumeration pass.
+                DeviceCapabilityKind::Other(kind)
+                    if kind == "devices.capabilities.movie_setting" => {}
+
                 kind => {
                     log::info!(
                         "Unhandled capability {kind:?} '{instance}' for {d}. \
