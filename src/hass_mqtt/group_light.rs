@@ -106,11 +106,7 @@ impl EntityInstance for GroupLight {
         }
 
         let state_str = if any_on { "ON" } else { "OFF" };
-        let avg_brightness = if brightness_count > 0 {
-            brightness_sum / brightness_count
-        } else {
-            0
-        };
+        let avg_brightness = brightness_sum.checked_div(brightness_count).unwrap_or(0);
 
         let mut payload = Map::new();
         payload.insert("state".to_string(), json!(state_str));
