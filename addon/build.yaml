@@ -4,13 +4,11 @@ labels:
   org.opencontainers.image.source: "https://github.com/sitapix/govee2mqtt"
   org.opencontainers.image.licenses: "MIT"
 
-# We need to specify these explicitly otherwise :latest will be
-# used by the builder, and that will fail the cosign chain of trust.
-# This should probably be kept in sync with the settings in
-# https://github.com/home-assistant/builder/blob/master/build.yaml
+# Pin the signed multi-architecture docker-base release. Home Assistant moved
+# away from architecture-prefixed base images in docker-base 2026.03.1.
 build_from:
-  aarch64: "ghcr.io/home-assistant/aarch64-base-debian:bookworm"
-  amd64: "ghcr.io/home-assistant/amd64-base-debian:bookworm"
+  aarch64: "ghcr.io/home-assistant/base-debian:bookworm-2026.06.1"
+  amd64: "ghcr.io/home-assistant/base-debian:bookworm-2026.06.1"
 cosign:
   # The identity is *our* identity that we use to sign this image.
   # It is used to verify the safety of reusing the cache
