@@ -229,6 +229,11 @@ impl PacketManager {
             SetSceneCode::encode,
             SetSceneCode::decode,
         ));
+        all_codecs.push(PacketCodec::new(
+            &["Generic:Light"],
+            SetMusicPalette::encode,
+            SetMusicPalette::decode,
+        ));
 
         all_codecs.push(packet!(
             &["Generic:Light"],
@@ -421,6 +426,66 @@ impl SetSceneCode {
 
     fn decode(_data: &[u8]) -> anyhow::Result<GoveeBlePacket> {
         anyhow::bail!("SetSceneCode::decode is not implemented");
+    }
+}
+
+/// Programs music mode with a caller-supplied color palette using the
+/// classic `ptReal` frame dialect.
+///
+/// The palette body contains one to seven RGB triples. The first 12 bytes
+/// ride in the initial fragment and any remainder in an `a3 ff` fragment;
+/// the final frame activates the SKU-specific profile and sensitivity.
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
+pub struct SetMusicPalette {
+    pub profile: u8,
+    pub colors: Vec<[u8; 3]>,
+    pub sensitivity: u8,
+}
+
+impl SetMusicPalette {
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        anyhow::ensure!(
+            (1..=7).contains(&self.colors.len()),
+            "music palette wants 1..=7 colors, got {}",
+            self.colors.len()
+        );
+        anyhow::ensure!(
+            self.sensitivity <= 100,
+            "sensitivity is a percentage, got {}",
+            self.sensitivity
+        );
+
+        let flat: Vec<u8> = self.colors.iter().flatten().copied().collect();
+        let (head, rest) = flat.split_at(flat.len().min(12));
+
+        let mut first = vec![
+            0xa3,
+            0x00,
+            0x01,
+            0x02,
+            0x41,
+            self.profile,
+            self.colors.len() as u8,
+        ];
+        first.extend_from_slice(head);
+
+        let mut second = vec![0xa3, 0xff];
+        second.extend_from_slice(rest);
+
+        let mut frames = finish(first);
+        frames.append(&mut finish(second));
+        frames.append(&mut finish(vec![
+            0x33,
+            0x05,
+            0x13,
+            self.profile,
+            self.sensitivity,
+        ]));
+        Ok(frames)
+    }
+
+    fn decode(_data: &[u8]) -> anyhow::Result<GoveeBlePacket> {
+        anyhow::bail!("SetMusicPalette::decode is not implemented");
     }
 }
 
@@ -620,5 +685,98 @@ a3 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 5c
 33 05 04 d4 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 e6
 "
         );
+    }
+
+    fn hex_lines(bytes: &[u8]) -> String {
+        let mut hex = String::new();
+        for (idx, b) in bytes.iter().enumerate() {
+            if idx % 20 == 0 && !hex.is_empty() {
+                hex.push('\n');
+            } else if !hex.is_empty() {
+                hex.push(' ');
+            }
+            hex.push_str(&format!("{b:02x}"));
+        }
+        hex
+    }
+
+    #[test]
+    fn music_palette_four_colors() {
+        let command = SetMusicPalette {
+            profile: 0x72,
+            colors: vec![
+                [0xff, 0x7a, 0x00],
+                [0x14, 0x00, 0xc8],
+                [0x4a, 0x00, 0xe0],
+                [0xff, 0xc2, 0x4a],
+            ],
+            sensitivity: 99,
+        };
+
+        k9::snapshot!(
+            hex_lines(&command.encode().unwrap()),
+            "
+a3 00 01 02 41 72 04 ff 7a 00 14 00 c8 4a 00 e0 ff c2 4a 13
+a3 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 5c
+33 05 13 72 63 00 00 00 00 00 00 00 00 00 00 00 00 00 00 34
+"
+        );
+    }
+
+    #[test]
+    fn music_palette_seven_colors_spills_into_tail() {
+        let command = SetMusicPalette {
+            profile: 0x33,
+            colors: (1..=7u8).map(|i| [i, 2 * i, 3 * i]).collect(),
+            sensitivity: 100,
+        };
+
+        k9::snapshot!(
+            hex_lines(&command.encode().unwrap()),
+            "
+a3 00 01 02 41 33 07 01 02 03 02 04 06 03 06 09 04 08 0c d9
+a3 ff 05 0a 0f 06 0c 12 07 0e 15 00 00 00 00 00 00 00 00 58
+33 05 13 33 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 72
+"
+        );
+    }
+
+    #[test]
+    fn music_palette_rejects_bad_input() {
+        let base = SetMusicPalette {
+            profile: 0x72,
+            colors: vec![[255, 0, 0]],
+            sensitivity: 99,
+        };
+
+        assert!(SetMusicPalette {
+            colors: vec![],
+            ..base.clone()
+        }
+        .encode()
+        .is_err());
+        assert!(SetMusicPalette {
+            colors: vec![[0, 0, 0]; 8],
+            ..base.clone()
+        }
+        .encode()
+        .is_err());
+        assert!(SetMusicPalette {
+            sensitivity: 101,
+            ..base
+        }
+        .encode()
+        .is_err());
+    }
+
+    #[test]
+    fn music_palette_is_registered_for_generic_lights() {
+        let command = SetMusicPalette {
+            profile: 0x72,
+            colors: vec![[255, 0, 0]],
+            sensitivity: 99,
+        };
+        let encoded = Base64HexBytes::encode_for_sku("Generic:Light", &command).unwrap();
+        assert_eq!(encoded.base64().len(), 3);
     }
 }

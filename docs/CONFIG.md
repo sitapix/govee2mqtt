@@ -80,6 +80,7 @@ disable the published effect list:
 |---|-----|-------|
 |`GOVEE_DISABLE_EFFECTS=true`|`disable_effects`|Disable all effects in MQTT discovery. Scene control via automations still works.|
 |`GOVEE_ALLOWED_EFFECTS=Forest,Aurora`|`allowed_effects`|Comma-separated whitelist of effects to include (case-insensitive).|
+|`GOVEE_MUSIC_PALETTE=true`|`music_palette`|Enable LAN-only multi-color music palette commands for mapped SKUs. See [MUSIC_MODE.md](MUSIC_MODE.md).|
 
 Per-device effect disabling is also available via the [device config file](#per-device-configuration).
 

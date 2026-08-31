@@ -54,6 +54,8 @@ schema:
   # to email you a code, then you set this value and restart within
   # ~15 minutes before it expires.
   govee_2fa_code: "password?"
+  # Experimental LAN-only custom music palette commands.
+  music_palette: "bool?"
   # Advanced: polling interval in seconds (default 120).
   # Increase to 900 if you have many devices without IoT/LAN support
   # to avoid exceeding the Govee API rate limit (10,000 req/day).

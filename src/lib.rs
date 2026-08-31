@@ -3,6 +3,7 @@ pub mod cache;
 pub mod commands;
 pub mod hass_mqtt;
 pub mod lan_api;
+pub mod music;
 #[macro_use]
 pub mod platform_api;
 pub mod rest_api;

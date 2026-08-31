@@ -511,6 +511,67 @@ pub struct IdParameter {
     pub id: String,
 }
 
+#[derive(Deserialize)]
+struct MusicPaletteCommand {
+    style: String,
+    colors: Vec<String>,
+    #[serde(default = "default_music_sensitivity")]
+    sensitivity: u8,
+}
+
+fn default_music_sensitivity() -> u8 {
+    100
+}
+
+/// Programs an opt-in, caller-supplied music palette over LAN.
+async fn mqtt_set_music_palette(
+    Payload(payload): Payload<String>,
+    Params(IdParameter { id }): Params<IdParameter>,
+    State(state): State<StateHandle>,
+) -> anyhow::Result<()> {
+    let enabled = std::env::var("GOVEE_MUSIC_PALETTE")
+        .map(|value| value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    anyhow::ensure!(
+        enabled,
+        "set-music-palette is opt-in: set GOVEE_MUSIC_PALETTE=true to enable it"
+    );
+
+    let command: MusicPaletteCommand = serde_json::from_str(&payload)
+        .with_context(|| format!("parsing set-music-palette payload {payload:?}"))?;
+    let device = state.resolve_device_for_control(&id).await?;
+    let profile = crate::music::music_profile(&device.sku, &command.style).ok_or_else(|| {
+        match crate::music::music_styles(&device.sku) {
+            Some(styles) => anyhow::anyhow!(
+                "style {:?} is not mapped for {}; mapped styles: {}",
+                command.style,
+                device.sku,
+                styles.join(", ")
+            ),
+            None => anyhow::anyhow!(
+                "{} has no music profile table entry; see docs/MUSIC_MODE.md",
+                device.sku
+            ),
+        }
+    })?;
+    let colors = command
+        .colors
+        .iter()
+        .map(|color| crate::music::parse_hex_color(color))
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+    state
+        .device_set_music_palette(
+            &device,
+            &crate::ble::SetMusicPalette {
+                profile,
+                colors,
+                sensitivity: command.sensitivity,
+            },
+        )
+        .await
+}
+
 /// Someone clicked the "Request Platform API State" button
 async fn mqtt_request_platform_data(
     Params(IdParameter { id }): Params<IdParameter>,
@@ -1090,6 +1151,9 @@ async fn run_mqtt_loop(
             .await?;
         router
             .route("gv2mqtt/:id/set-music-mode", mqtt_set_music_mode)
+            .await?;
+        router
+            .route("gv2mqtt/:id/set-music-palette", mqtt_set_music_palette)
             .await?;
         router
             .route(

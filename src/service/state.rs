@@ -1,4 +1,6 @@
-use crate::ble::{Base64HexBytes, SetHumidifierMode, SetHumidifierNightlightParams};
+use crate::ble::{
+    Base64HexBytes, SetHumidifierMode, SetHumidifierNightlightParams, SetMusicPalette,
+};
 use crate::lan_api::{Client as LanClient, DeviceStatus as LanDeviceStatus, LanDevice};
 use crate::platform_api::{DeviceCapability, DeviceType, GoveeApiClient, HttpRequestFailed};
 use crate::service::coordinator::Coordinator;
@@ -981,6 +983,34 @@ impl State {
         }
 
         anyhow::bail!("Unable to set music autoColor for {device}");
+    }
+
+    /// Program music mode with a caller-chosen palette over LAN. The
+    /// reverse-engineered `ptReal` sequence is sent twice because UDP has no
+    /// acknowledgement and the operation is idempotent.
+    pub async fn device_set_music_palette(
+        self: &Arc<Self>,
+        device: &Device,
+        command: &SetMusicPalette,
+    ) -> anyhow::Result<()> {
+        let encoded = Base64HexBytes::encode_for_sku("Generic:Light", command)?.base64();
+
+        if let Some(lan_dev) = &device.lan_device {
+            log::info!("Using LAN API to set {device} music palette");
+            lan_dev.send_real(encoded.clone()).await?;
+            sleep(Duration::from_millis(300)).await;
+            lan_dev.send_real(encoded).await?;
+            self.device_mut(&device.sku, &device.id)
+                .await
+                .set_active_scene(None);
+            return Ok(());
+        }
+
+        anyhow::bail!(
+            "Unable to set music palette for {device}: it was not discovered \
+             on the LAN. Music palettes are LAN-only; check that LAN Control \
+             is enabled for this device in the Govee Home app"
+        );
     }
 
     // Take care not to call this while you hold a mutable device
