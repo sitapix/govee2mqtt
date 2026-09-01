@@ -127,8 +127,7 @@ impl Device {
 
     /// Returns the device name. Priority: user config override > Govee App name > computed name.
     pub fn name(&self) -> String {
-        if let Some(ovr) = crate::service::device_config::get_device_override(&self.id, &self.sku)
-        {
+        if let Some(ovr) = crate::service::device_config::get_device_override(&self.id, &self.sku) {
             if let Some(name) = ovr.name {
                 return name;
             }
@@ -148,8 +147,7 @@ impl Device {
     }
 
     pub fn room_name(&self) -> Option<String> {
-        if let Some(ovr) = crate::service::device_config::get_device_override(&self.id, &self.sku)
-        {
+        if let Some(ovr) = crate::service::device_config::get_device_override(&self.id, &self.sku) {
             if let Some(room) = ovr.room {
                 return Some(room);
             }
@@ -410,7 +408,7 @@ impl Device {
             candidates.push(state);
         }
 
-        candidates.sort_by(|a, b| a.updated.cmp(&b.updated));
+        candidates.sort_by_key(|a| a.updated);
 
         candidates.pop()
     }
@@ -550,8 +548,7 @@ impl Device {
     }
 
     pub fn avoid_platform_api(&self) -> bool {
-        if let Some(ovr) = crate::service::device_config::get_device_override(&self.id, &self.sku)
-        {
+        if let Some(ovr) = crate::service::device_config::get_device_override(&self.id, &self.sku) {
             if ovr.prefer_lan == Some(true) && self.lan_device.is_some() {
                 return true;
             }
@@ -633,8 +630,7 @@ impl Device {
 
     pub fn get_color_temperature_range(&self) -> Option<(u32, u32)> {
         // User config override takes highest priority
-        if let Some(ovr) = crate::service::device_config::get_device_override(&self.id, &self.sku)
-        {
+        if let Some(ovr) = crate::service::device_config::get_device_override(&self.id, &self.sku) {
             if let Some(range) = ovr.color_temp_range {
                 return Some(range);
             }

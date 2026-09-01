@@ -48,7 +48,10 @@ pub fn load_device_database() -> DeviceDatabase {
                 db
             }
             Err(err) => {
-                log::warn!("Failed to parse device database {}: {err:#}", path.display());
+                log::warn!(
+                    "Failed to parse device database {}: {err:#}",
+                    path.display()
+                );
                 DeviceDatabase::default()
             }
         },

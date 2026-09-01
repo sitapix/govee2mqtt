@@ -1,4 +1,6 @@
-use crate::ble::{Base64HexBytes, SetHumidifierMode, SetHumidifierNightlightParams};
+use crate::ble::{
+    Base64HexBytes, SetHumidifierMode, SetHumidifierNightlightParams, SetMusicPalette,
+};
 use crate::lan_api::{Client as LanClient, DeviceStatus as LanDeviceStatus, LanDevice};
 use crate::platform_api::{DeviceCapability, DeviceType, GoveeApiClient, HttpRequestFailed};
 use crate::service::coordinator::Coordinator;
@@ -678,8 +680,7 @@ impl State {
         let mut scenes = merge_scene_name_sources(platform_scenes, undoc_scenes);
 
         // Merge decoded scene database (AlgoClaw) as additional source
-        let decoded_names =
-            crate::service::scene_database::scene_names_for_sku(&device.sku);
+        let decoded_names = crate::service::scene_database::scene_names_for_sku(&device.sku);
         if !decoded_names.is_empty() {
             let existing_lower: std::collections::HashSet<String> =
                 scenes.iter().map(|s| s.to_ascii_lowercase()).collect();
@@ -825,14 +826,10 @@ impl State {
         }
 
         // Also try decoded database via IoT if no LAN
-        if let Some(commands) =
-            crate::service::scene_database::scene_commands(&device.sku, scene)
-        {
+        if let Some(commands) = crate::service::scene_database::scene_commands(&device.sku, scene) {
             if let Some(iot) = self.get_iot_client().await {
                 if let Some(info) = &device.undoc_device_info {
-                    log::info!(
-                        "Using IoT API (decoded database) to set {device} to scene {scene}"
-                    );
+                    log::info!("Using IoT API (decoded database) to set {device} to scene {scene}");
                     iot.send_real(&info.entry, commands).await?;
                     self.device_mut(&device.sku, &device.id)
                         .await
@@ -983,6 +980,34 @@ impl State {
         anyhow::bail!("Unable to set music autoColor for {device}");
     }
 
+    /// Program music mode with a caller-chosen palette over LAN. The
+    /// reverse-engineered `ptReal` sequence is sent twice because UDP has no
+    /// acknowledgement and the operation is idempotent.
+    pub async fn device_set_music_palette(
+        self: &Arc<Self>,
+        device: &Device,
+        command: &SetMusicPalette,
+    ) -> anyhow::Result<()> {
+        let encoded = Base64HexBytes::encode_for_sku("Generic:Light", command)?.base64();
+
+        if let Some(lan_dev) = &device.lan_device {
+            log::info!("Using LAN API to set {device} music palette");
+            lan_dev.send_real(encoded.clone()).await?;
+            sleep(Duration::from_millis(300)).await;
+            lan_dev.send_real(encoded).await?;
+            self.device_mut(&device.sku, &device.id)
+                .await
+                .set_active_scene(None);
+            return Ok(());
+        }
+
+        anyhow::bail!(
+            "Unable to set music palette for {device}: it was not discovered \
+             on the LAN. Music palettes are LAN-only; check that LAN Control \
+             is enabled for this device in the Govee Home app"
+        );
+    }
+
     // Take care not to call this while you hold a mutable device
     // reference, as that will deadlock!
     pub async fn notify_of_state_change(self: &Arc<Self>, device_id: &str) -> anyhow::Result<()> {
@@ -991,14 +1016,14 @@ impl State {
         };
 
         // Emit event for any interested extensions
-        self.event_bus.emit(crate::service::event_bus::Event::DeviceStateChanged {
-            device_id: device_id.to_string(),
-        });
+        self.event_bus
+            .emit(crate::service::event_bus::Event::DeviceStateChanged {
+                device_id: device_id.to_string(),
+            });
 
         if let Some(hass) = self.get_hass_client().await {
             // Mark device as online since we just got a state update
-            let avail_topic =
-                crate::service::hass::device_availability_topic(&canonical_device);
+            let avail_topic = crate::service::hass::device_availability_topic(&canonical_device);
             if let Err(err) = hass.publish_retained(&avail_topic, "online").await {
                 log::warn!("Failed to publish device availability for {device_id}: {err:#}");
             }
@@ -1039,7 +1064,6 @@ impl State {
 
         log::info!("Graceful shutdown complete");
     }
-
 }
 
 pub fn sort_and_dedup_scenes(scenes: Vec<String>) -> Vec<String> {

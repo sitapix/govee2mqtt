@@ -87,10 +87,7 @@ pub fn load_scene_databases() {
                         db.insert(sku, scenes);
                     }
                     Err(err) => {
-                        log::warn!(
-                            "Failed to parse scene database {}: {err:#}",
-                            path.display()
-                        );
+                        log::warn!("Failed to parse scene database {}: {err:#}", path.display());
                     }
                 },
                 Err(err) => {

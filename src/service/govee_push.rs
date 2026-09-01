@@ -50,10 +50,7 @@ impl GoveeEvent {
 
 /// Start the Govee MQTT push client. Connects to the official API
 /// and processes incoming device state events.
-pub async fn start_govee_push_client(
-    api_key: &str,
-    state: StateHandle,
-) -> anyhow::Result<()> {
+pub async fn start_govee_push_client(api_key: &str, state: StateHandle) -> anyhow::Result<()> {
     let client_id = format!("govee2mqtt-push-{}", uuid::Uuid::new_v4().simple());
     let client = Client::with_id(&client_id, true)?;
 
@@ -62,10 +59,10 @@ pub async fn start_govee_push_client(
     // TLS without client certs (server cert only)
     // Find a system CA bundle for TLS verification
     let ca_paths = [
-        "/etc/ssl/certs",              // Debian/Ubuntu
-        "/etc/pki/tls/certs",          // RHEL/CentOS
-        "/usr/local/share/certs",      // FreeBSD
-        "/etc/ssl",                    // Alpine
+        "/etc/ssl/certs",                             // Debian/Ubuntu
+        "/etc/pki/tls/certs",                         // RHEL/CentOS
+        "/usr/local/share/certs",                     // FreeBSD
+        "/etc/ssl",                                   // Alpine
         "/opt/homebrew/etc/ca-certificates/cert.pem", // macOS Homebrew
     ];
     let ca_path = ca_paths.iter().find(|p| std::path::Path::new(p).exists());
@@ -97,7 +94,12 @@ pub async fn start_govee_push_client(
 
     match tokio::time::timeout(
         Duration::from_secs(30),
-        client.connect(GOVEE_MQTT_HOST, GOVEE_MQTT_PORT.into(), Duration::from_secs(120), None),
+        client.connect(
+            GOVEE_MQTT_HOST,
+            GOVEE_MQTT_PORT.into(),
+            Duration::from_secs(120),
+            None,
+        ),
     )
     .await
     {
@@ -210,10 +212,7 @@ async fn process_push_event(state: &StateHandle, event: &GoveeEvent) {
 
     // Check for special events
     if event.is_lack_water_event() {
-        log::warn!(
-            "Govee push: lack water event for {} ({})",
-            device_id, sku
-        );
+        log::warn!("Govee push: lack water event for {} ({})", device_id, sku);
 
         // Publish to MQTT so HA automations can react
         if let Some(hass) = state.get_hass_client().await {

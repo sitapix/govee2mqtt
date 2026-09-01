@@ -20,6 +20,8 @@ Common options:
 - `no_multicast`, `broadcast_all`, `global_broadcast`, `scan`: LAN discovery tuning
 - `disable_effects`: Disable effects in MQTT discovery (fixes Google Home offline issue)
 - `allowed_effects`: Comma-separated whitelist of effect names to include
+- `music_palette`: Enable the experimental LAN-only custom music palette MQTT
+  command for supported SKUs. See `docs/MUSIC_MODE.md` in the repository.
 
 If `mqtt_host` is left empty, the app waits for the Home Assistant MQTT service and uses the broker details provided by Supervisor.
 

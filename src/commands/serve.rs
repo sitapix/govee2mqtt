@@ -25,9 +25,8 @@ use tokio::time::{sleep, Duration};
 /// the 10,000/day Platform API limit — but IoT/Push/LAN state updates skip
 /// the Platform API poll, so only devices without those channels consume quota.
 /// Users with 14+ non-IoT/LAN devices should increase this (e.g. 900).
-pub static POLL_INTERVAL: Lazy<chrono::Duration> = Lazy::new(|| {
-    parse_poll_interval(std::env::var("GOVEE_POLL_INTERVAL").ok().as_deref())
-});
+pub static POLL_INTERVAL: Lazy<chrono::Duration> =
+    Lazy::new(|| parse_poll_interval(std::env::var("GOVEE_POLL_INTERVAL").ok().as_deref()));
 
 /// Parse poll interval from an optional string value, falling back to 120s.
 /// Clamps to a minimum of 30s to prevent API abuse and broken online detection.
@@ -59,10 +58,7 @@ async fn poll_single_device(state: &StateHandle, device: &Device) -> anyhow::Res
     // Skip LAN polling when the device is OFF to prevent firmware-induced
     // flashing on some devices (e.g. H6061 Glide Hexa).
     // <https://github.com/wez/govee2mqtt/issues/250>
-    let is_off = device
-        .device_state()
-        .map(|s| !s.on)
-        .unwrap_or(false);
+    let is_off = device.device_state().map(|s| !s.on).unwrap_or(false);
 
     if !is_off {
         if let Some(lan_device) = &device.lan_device {
@@ -229,10 +225,7 @@ impl ServeCommand {
     }
 
     /// Run API discovery, falling back to cached device database on failure.
-    async fn discover_devices(
-        state: &StateHandle,
-        args: &crate::Args,
-    ) -> anyhow::Result<()> {
+    async fn discover_devices(state: &StateHandle, args: &crate::Args) -> anyhow::Result<()> {
         let mut device_db = crate::service::device_database::load_device_database();
         let mut api_discovery_failed = false;
 
@@ -266,9 +259,7 @@ impl ServeCommand {
                         if let Err(err) =
                             enumerate_devices_via_platform_api(state.clone(), None).await
                         {
-                            log::error!(
-                                "Error during periodic platform API discovery: {err:#}"
-                            );
+                            log::error!("Error during periodic platform API discovery: {err:#}");
                         }
                     }
                 });
@@ -322,9 +313,7 @@ impl ServeCommand {
                 device_db.devices.len()
             );
             for persisted in device_db.devices.values() {
-                let mut device = state
-                    .device_mut(&persisted.sku, &persisted.device_id)
-                    .await;
+                let mut device = state.device_mut(&persisted.sku, &persisted.device_id).await;
                 device.set_http_device_info(crate::platform_api::HttpDeviceInfo {
                     sku: persisted.sku.clone(),
                     device: persisted.device_id.clone(),
@@ -343,10 +332,7 @@ impl ServeCommand {
     }
 
     /// Start LAN UDP discovery and wait for initial device probes.
-    async fn start_lan_discovery(
-        state: &StateHandle,
-        args: &crate::Args,
-    ) -> anyhow::Result<()> {
+    async fn start_lan_discovery(state: &StateHandle, args: &crate::Args) -> anyhow::Result<()> {
         let options = args.lan_disco_args.to_disco_options()?;
         if options.is_empty() {
             return Ok(());

@@ -68,6 +68,7 @@ export_config disable_effects    GOVEE_DISABLE_EFFECTS
 export_config allowed_effects    GOVEE_ALLOWED_EFFECTS
 export_config govee_app_version  GOVEE_APP_VERSION
 export_config govee_2fa_code     GOVEE_2FA_CODE
+export_config music_palette      GOVEE_MUSIC_PALETTE
 export_config poll_interval      GOVEE_POLL_INTERVAL
 
 env | grep GOVEE_ | sed -r 's/_(EMAIL|KEY|PASSWORD|2FA_CODE)=.*/_\1=REDACTED/'

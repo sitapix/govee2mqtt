@@ -52,8 +52,7 @@ static CONFIG: once_cell::sync::Lazy<ArcSwap<DeviceConfigFile>> =
     once_cell::sync::Lazy::new(|| ArcSwap::new(Arc::new(DeviceConfigFile::default())));
 
 /// Track file modification time for hot-reload.
-static LAST_MODIFIED: std::sync::Mutex<Option<std::time::SystemTime>> =
-    std::sync::Mutex::new(None);
+static LAST_MODIFIED: std::sync::Mutex<Option<std::time::SystemTime>> = std::sync::Mutex::new(None);
 
 fn config_path() -> PathBuf {
     let mut path = std::env::var_os("XDG_CACHE_HOME")
@@ -174,9 +173,7 @@ fn validate_config(config: &DeviceConfigFile) {
     for (key, ovr) in &config.devices {
         if let Some((min, max)) = ovr.color_temp_range {
             if min >= max {
-                log::warn!(
-                    "Device config [{key}]: color_temp_range min ({min}) >= max ({max})"
-                );
+                log::warn!("Device config [{key}]: color_temp_range min ({min}) >= max ({max})");
             }
             if min < 1000 || max > 12000 {
                 log::warn!(
@@ -187,9 +184,7 @@ fn validate_config(config: &DeviceConfigFile) {
         }
         if let Some(ref icon) = ovr.icon {
             if !icon.starts_with("mdi:") {
-                log::warn!(
-                    "Device config [{key}]: icon \"{icon}\" doesn't start with \"mdi:\""
-                );
+                log::warn!("Device config [{key}]: icon \"{icon}\" doesn't start with \"mdi:\"");
             }
         }
     }
@@ -303,10 +298,7 @@ mod tests {
         let parsed: DeviceConfigFile = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.devices.len(), 1);
         assert_eq!(parsed.groups.len(), 1);
-        assert_eq!(
-            parsed.devices["AA:BB"].name.as_deref(),
-            Some("Test")
-        );
+        assert_eq!(parsed.devices["AA:BB"].name.as_deref(), Some("Test"));
     }
 
     #[test]
@@ -317,8 +309,7 @@ mod tests {
         assert!(parsed.groups.is_empty());
 
         // Only devices key
-        let parsed: DeviceConfigFile =
-            serde_json::from_str(r#"{"devices": {}}"#).unwrap();
+        let parsed: DeviceConfigFile = serde_json::from_str(r#"{"devices": {}}"#).unwrap();
         assert!(parsed.devices.is_empty());
         assert!(parsed.groups.is_empty());
     }

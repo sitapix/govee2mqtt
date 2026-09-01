@@ -105,7 +105,6 @@ mod tests {
                 tick_error: false,
             }
         }
-
     }
 
     #[async_trait]

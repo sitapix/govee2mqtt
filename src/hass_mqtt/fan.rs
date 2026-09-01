@@ -75,7 +75,9 @@ impl Fan {
 
         if let Ok(wm) = ParsedWorkMode::with_device(device) {
             for name in wm.get_mode_names() {
-                let Some(mode) = wm.mode_by_name(&name) else { continue };
+                let Some(mode) = wm.mode_by_name(&name) else {
+                    continue;
+                };
                 if name.eq_ignore_ascii_case(FAN_SPEED_MODE) {
                     if let Some(range) = mode.contiguous_value_range() {
                         speed_range_min = Some(range.start.clamp(1, 255) as u8);
@@ -136,8 +138,7 @@ impl EntityInstance for Fan {
     }
 
     async fn notify_state(&self, client: &HassClient) -> anyhow::Result<()> {
-        let Some(device) =
-            lookup_entity_device(&self.state, &self.device_id, "fan entity").await
+        let Some(device) = lookup_entity_device(&self.state, &self.device_id, "fan entity").await
         else {
             return Ok(());
         };
@@ -163,7 +164,9 @@ impl EntityInstance for Fan {
         if active.name.eq_ignore_ascii_case(FAN_SPEED_MODE) {
             if let (Some(topic), Some(v)) = (
                 self.fan.percentage_state_topic.as_ref(),
-                cap.state.pointer("/value/modeValue").and_then(|v| v.as_i64()),
+                cap.state
+                    .pointer("/value/modeValue")
+                    .and_then(|v| v.as_i64()),
             ) {
                 client.publish(topic, v.to_string()).await?;
             }

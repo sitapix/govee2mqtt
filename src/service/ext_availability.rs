@@ -56,8 +56,7 @@ impl Extension for AvailabilityExtension {
             } else {
                 let interval = 1u32 << (*offline_count).min(5);
                 *offline_count += 1;
-                !*was_online && is_online != *was_online
-                    || *offline_count % interval == 0
+                !*was_online && is_online != *was_online || *offline_count % interval == 0
             };
 
             *was_online = is_online;

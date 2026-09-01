@@ -239,7 +239,10 @@ fn load_external_quirks(map: &mut HashMap<String, Quirk>) {
     let externals: Vec<ExternalQuirk> = match serde_json::from_str(&data) {
         Ok(v) => v,
         Err(err) => {
-            log::error!("Failed to parse external quirks {}: {err:#}", path.display());
+            log::error!(
+                "Failed to parse external quirks {}: {err:#}",
+                path.display()
+            );
             return;
         }
     };
@@ -509,8 +512,7 @@ fn load_quirks() -> HashMap<String, Quirk> {
         // H5129 outdoor motion sensor — BLE only. Same caveat as the
         // strips above: classified correctly but not controllable until
         // a BLE path exists. <https://github.com/wez/govee2mqtt/issues/580>
-        Quirk::device("H5129", DeviceType::Sensor, "mdi:motion-sensor")
-            .with_ble_only(true),
+        Quirk::device("H5129", DeviceType::Sensor, "mdi:motion-sensor").with_ble_only(true),
         // Meat thermometers (BLE-only). Mapping them keeps the log clean
         // and establishes the right icon; real values require BLE ingest.
         Quirk::thermometer("H5181")

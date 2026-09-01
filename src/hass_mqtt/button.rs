@@ -154,7 +154,10 @@ mod tests {
         let device = Device::new("H7160", "AA:BB");
         let button = ButtonConfig::activate_work_mode_preset(&device, "High", "humidity", 1, 8);
         assert_eq!(button.base.name.as_deref(), Some("High"));
-        assert_eq!(button.command_topic, "gv2mqtt/number/AABB/command/humidity/1");
+        assert_eq!(
+            button.command_topic,
+            "gv2mqtt/number/AABB/command/humidity/1"
+        );
         assert_eq!(button.payload_press.as_deref(), Some("8"));
     }
 
@@ -166,10 +169,7 @@ mod tests {
             button.base.name.as_deref(),
             Some("Request Platform API State")
         );
-        assert_eq!(
-            button.base.entity_category.as_deref(),
-            Some("diagnostic")
-        );
+        assert_eq!(button.base.entity_category.as_deref(), Some("diagnostic"));
         assert_eq!(button.command_topic, "gv2mqtt/AABB/request-platform-data");
 
         let _entity_trait: &dyn EntityInstance = &button;

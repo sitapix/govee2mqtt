@@ -72,11 +72,7 @@ impl GroupLight {
 
 #[async_trait]
 impl EntityInstance for GroupLight {
-    async fn publish_config(
-        &self,
-        state: &StateHandle,
-        client: &HassClient,
-    ) -> anyhow::Result<()> {
+    async fn publish_config(&self, state: &StateHandle, client: &HassClient) -> anyhow::Result<()> {
         publish_entity_config("light", state, client, &self.config.base, &self.config).await
     }
 
@@ -106,11 +102,7 @@ impl EntityInstance for GroupLight {
         }
 
         let state_str = if any_on { "ON" } else { "OFF" };
-        let avg_brightness = if brightness_count > 0 {
-            brightness_sum / brightness_count
-        } else {
-            0
-        };
+        let avg_brightness = brightness_sum.checked_div(brightness_count).unwrap_or(0);
 
         let mut payload = Map::new();
         payload.insert("state".to_string(), json!(state_str));
@@ -119,10 +111,7 @@ impl EntityInstance for GroupLight {
             if let Some(c) = color {
                 if kelvin == 0 {
                     payload.insert("color_mode".to_string(), json!("rgb"));
-                    payload.insert(
-                        "color".to_string(),
-                        json!({"r": c.r, "g": c.g, "b": c.b}),
-                    );
+                    payload.insert("color".to_string(), json!({"r": c.r, "g": c.g, "b": c.b}));
                 } else {
                     payload.insert("color_mode".to_string(), json!("color_temp"));
                 }
@@ -130,7 +119,10 @@ impl EntityInstance for GroupLight {
         }
 
         client
-            .publish(&self.config.state_topic, &Value::Object(payload).to_string())
+            .publish(
+                &self.config.state_topic,
+                &Value::Object(payload).to_string(),
+            )
             .await
     }
 }

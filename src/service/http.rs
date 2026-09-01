@@ -86,10 +86,7 @@ fn get_auth_token() -> Option<String> {
         .filter(|t| !t.trim().is_empty())
 }
 
-async fn require_auth_token(
-    request: Request<axum::body::Body>,
-    next: Next,
-) -> Response {
+async fn require_auth_token(request: Request<axum::body::Body>, next: Next) -> Response {
     let Some(expected) = get_auth_token() else {
         return next.run(request).await;
     };
@@ -290,14 +287,17 @@ async fn device_send_ptreal(
     }
 
     if let Some(lan_dev) = &device.lan_device {
-        log::info!("Sending ptReal to {device} via LAN ({} commands)", commands.len());
-        lan_dev
-            .send_real(commands)
-            .await
-            .map_err(generic)?;
+        log::info!(
+            "Sending ptReal to {device} via LAN ({} commands)",
+            commands.len()
+        );
+        lan_dev.send_real(commands).await.map_err(generic)?;
     } else if let Some(iot) = state.get_iot_client().await {
         if let Some(info) = &device.undoc_device_info {
-            log::info!("Sending ptReal to {device} via IoT ({} commands)", commands.len());
+            log::info!(
+                "Sending ptReal to {device} via IoT ({} commands)",
+                commands.len()
+            );
             iot.send_real(&info.entry, commands)
                 .await
                 .map_err(generic)?;
@@ -533,9 +533,8 @@ async fn get_config() -> Response {
 }
 
 async fn put_config(Json(body): Json<serde_json::Value>) -> Result<Response, Response> {
-    let config: crate::service::device_config::DeviceConfigFile =
-        serde_json::from_value(body)
-            .map_err(|e| bad_request(format!("Invalid config JSON: {e}")))?;
+    let config: crate::service::device_config::DeviceConfigFile = serde_json::from_value(body)
+        .map_err(|e| bad_request(format!("Invalid config JSON: {e}")))?;
 
     crate::service::device_config::save_config(&config).map_err(generic)?;
 

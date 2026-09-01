@@ -3,6 +3,7 @@ pub mod cache;
 pub mod commands;
 pub mod hass_mqtt;
 pub mod lan_api;
+pub mod music;
 #[macro_use]
 pub mod platform_api;
 pub mod rest_api;
@@ -60,8 +61,7 @@ where
 {
     use anyhow::Context;
 
-    let log_sensitive_data =
-        !name.contains("PASSWORD") || undoc_api::should_log_sensitive_data();
+    let log_sensitive_data = !name.contains("PASSWORD") || undoc_api::should_log_sensitive_data();
 
     match std::env::var(name) {
         Ok(p) => Ok(Some(p.parse().map_err(|err| {

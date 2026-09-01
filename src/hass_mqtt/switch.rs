@@ -3,8 +3,8 @@ use crate::hass_mqtt::instance::{lookup_entity_device, publish_entity_config, En
 use crate::platform_api::DeviceCapability;
 use crate::service::device::Device as ServiceDevice;
 use crate::service::hass::{
-    camel_case_to_space_separated, switch_instance_state_topic,
-    topic_safe_id, HassClient, IdParameter,
+    camel_case_to_space_separated, switch_instance_state_topic, topic_safe_id, HassClient,
+    IdParameter,
 };
 use crate::service::state::StateHandle;
 use anyhow::Context;
@@ -249,15 +249,12 @@ mod tests {
             event_state: None,
         };
         let switch = SwitchConfig::for_device(&device, &cap).await.unwrap();
+        assert_eq!(switch.base.name.as_deref(), Some("Power Switch"));
         assert_eq!(
-            switch.base.name.as_deref(),
-            Some("Power Switch")
+            switch.command_topic,
+            "gv2mqtt/switch/AABB/command/powerSwitch"
         );
-        assert_eq!(switch.command_topic, "gv2mqtt/switch/AABB/command/powerSwitch");
-        assert_eq!(
-            switch.state_topic,
-            "gv2mqtt/switch/AABB/powerSwitch/state"
-        );
+        assert_eq!(switch.state_topic, "gv2mqtt/switch/AABB/powerSwitch/state");
         assert!(switch.enabled_by_default.is_none());
     }
 
